@@ -10,6 +10,7 @@ import (
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/log"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
+	"github.com/lexlapax/cogmem/pkg/reasoning"
 	"github.com/lexlapax/cogmem/pkg/scripting"
 )
 
@@ -52,12 +53,21 @@ type MMU interface {
 type Config struct {
 	// EnableLuaHooks determines whether to call Lua hooks during operations
 	EnableLuaHooks bool
+	
+	// EnableVectorOperations determines whether to use vector operations when available
+	EnableVectorOperations bool
+	
+	// WorkingMemoryLimit sets the maximum number of records in working memory
+	// before overflow triggers LTM encoding
+	WorkingMemoryLimit int
 }
 
 // DefaultConfig returns the default configuration for the MMU.
 func DefaultConfig() Config {
 	return Config{
-		EnableLuaHooks: true,
+		EnableLuaHooks:        true,
+		EnableVectorOperations: true,
+		WorkingMemoryLimit:    100,
 	}
 }
 
@@ -66,27 +76,46 @@ type MMUI struct {
 	// ltmStore is the long-term memory store
 	ltmStore ltm.LTMStore
 	
+	// reasoningEngine handles embedding generation and language processing
+	reasoningEngine reasoning.Engine
+	
 	// scriptEngine is the Lua scripting engine (optional)
 	scriptEngine scripting.Engine
 	
 	// config contains configuration options
 	config Config
+	
+	// workingMemory holds records not yet committed to LTM
+	// This is a simple implementation for Phase 2
+	workingMemory []ltm.MemoryRecord
 }
 
 // NewMMU creates a new MMU with the specified dependencies.
 func NewMMU(
 	ltmStore ltm.LTMStore,
+	reasoningEngine reasoning.Engine,
 	scriptEngine scripting.Engine,
 	config Config,
 ) *MMUI {
 	mmu := &MMUI{
-		ltmStore:     ltmStore,
-		scriptEngine: scriptEngine,
-		config:       config,
+		ltmStore:        ltmStore,
+		reasoningEngine: reasoningEngine,
+		scriptEngine:    scriptEngine,
+		config:          config,
+		workingMemory:   make([]ltm.MemoryRecord, 0, config.WorkingMemoryLimit),
+	}
+	
+	// Determine if the LTM store supports vector operations
+	supportsVectors := false
+	if config.EnableVectorOperations {
+		if vectorStore, ok := ltmStore.(ltm.VectorCapableLTMStore); ok {
+			supportsVectors = vectorStore.SupportsVectorSearch()
+		}
 	}
 	
 	log.Debug("Memory Management Unit (MMU) initialized", 
 		"lua_hooks_enabled", config.EnableLuaHooks,
+		"vector_operations", supportsVectors,
 		"ltm_store_type", fmt.Sprintf("%T", ltmStore),
 	)
 	
@@ -135,6 +164,11 @@ func (m *MMUI) EncodeToLTM(ctx context.Context, dataToStore interface{}) (string
 		if meta, ok := data["metadata"].(map[string]interface{}); ok {
 			record.Metadata = meta
 		}
+		
+		// Extract embedding if provided
+		if embedding, ok := data["embedding"].([]float32); ok {
+			record.Embedding = embedding
+		}
 	default:
 		// For any other type, try to marshal to JSON
 		jsonBytes, err := json.Marshal(dataToStore)
@@ -155,12 +189,40 @@ func (m *MMUI) EncodeToLTM(ctx context.Context, dataToStore interface{}) (string
 	// Generate a unique ID for the record
 	record.ID = uuid.New().String()
 	
-	// Apply Lua hooks if enabled
-	if m.config.EnableLuaHooks && m.scriptEngine != nil {
-		// For Phase 1, just call the hook but don't use its result
-		if m.scriptEngine != nil {
-			m.scriptEngine.ExecuteFunction(ctx, "before_encode", record.Content)
+	// Check if we need to generate embeddings
+	needsEmbedding := m.shouldGenerateEmbedding(record)
+	
+	// Apply before_embedding Lua hook if enabled
+	if needsEmbedding && m.config.EnableLuaHooks && m.scriptEngine != nil {
+		result, err := m.scriptEngine.ExecuteFunction(ctx, beforeEmbeddingFuncName, record.Content)
+		if err == nil {
+			// If the hook returns false, skip embedding generation
+			if skip, ok := result.(bool); ok && skip {
+				needsEmbedding = false
+				log.Debug("Embedding generation skipped by Lua hook")
+			}
 		}
+	}
+	
+	// Generate embedding if needed and possible
+	if needsEmbedding && m.reasoningEngine != nil {
+		embeddings, err := m.reasoningEngine.GenerateEmbeddings(ctx, []string{record.Content})
+		if err != nil {
+			// Log the error but continue without embedding
+			log.WarnContext(ctx, "Failed to generate embedding", 
+				"error", err,
+				"content_length", len(record.Content))
+		} else if len(embeddings) > 0 {
+			record.Embedding = embeddings[0]
+			log.Debug("Generated embedding for content", 
+				"embedding_dimensions", len(record.Embedding),
+				"content_preview", truncateString(record.Content, 30))
+		}
+	}
+	
+	// Apply before_encode Lua hook if enabled
+	if m.config.EnableLuaHooks && m.scriptEngine != nil {
+		m.scriptEngine.ExecuteFunction(ctx, beforeEncodeFuncName, record.Content)
 	}
 
 	// Store the record in LTM
@@ -168,12 +230,83 @@ func (m *MMUI) EncodeToLTM(ctx context.Context, dataToStore interface{}) (string
 	
 	// Apply after_encode hook if enabled
 	if err == nil && m.config.EnableLuaHooks && m.scriptEngine != nil {
-		if m.scriptEngine != nil {
-			m.scriptEngine.ExecuteFunction(ctx, "after_encode", memoryID)
-		}
+		m.scriptEngine.ExecuteFunction(ctx, afterEncodeFuncName, memoryID)
+	}
+	
+	// Check if we need to manage working memory overflow
+	if err == nil {
+		m.ManageWorkingMemoryOverflow(ctx)
 	}
 	
 	return memoryID, err
+}
+
+// shouldGenerateEmbedding determines if embedding generation is needed for a record.
+func (m *MMUI) shouldGenerateEmbedding(record ltm.MemoryRecord) bool {
+	// Skip if vector operations are disabled
+	if !m.config.EnableVectorOperations {
+		return false
+	}
+	
+	// Skip if reasoning engine is not available
+	if m.reasoningEngine == nil {
+		return false
+	}
+	
+	// Skip if embedding already exists
+	if len(record.Embedding) > 0 {
+		return false
+	}
+	
+	// Check if the LTM store supports vector operations
+	vectorStore, ok := m.ltmStore.(ltm.VectorCapableLTMStore)
+	if !ok || !vectorStore.SupportsVectorSearch() {
+		return false
+	}
+	
+	// Skip if content is empty
+	if record.Content == "" {
+		return false
+	}
+	
+	return true
+}
+
+// truncateString truncates a string to the specified length and adds "..." if truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// ManageWorkingMemoryOverflow handles eviction of items from working memory to LTM
+// when the working memory reaches its capacity limit.
+// Exported for testing purposes.
+func (m *MMUI) ManageWorkingMemoryOverflow(ctx context.Context) {
+	// For Phase 2, this is a simple placeholder implementation
+	// In future phases, this would implement more sophisticated overflow management
+	
+	// Skip handling if not initialized or below limit
+	if m.workingMemory == nil || len(m.workingMemory) < m.config.WorkingMemoryLimit {
+		return
+	}
+	
+	log.Debug("Managing working memory overflow",
+		"current_size", len(m.workingMemory),
+		"limit", m.config.WorkingMemoryLimit)
+	
+	// Simple LRU implementation - evict the oldest half of the records
+	evictionCount := len(m.workingMemory) / 2
+	if evictionCount < 1 && len(m.workingMemory) > 0 {
+		evictionCount = 1
+	}
+	
+	// Ensure we don't have an out-of-bounds error
+	if evictionCount > 0 && evictionCount <= len(m.workingMemory) {
+		// Records to keep
+		m.workingMemory = m.workingMemory[evictionCount:]
+	}
 }
 
 // RetrieveFromLTM implements the MMU interface.
@@ -211,9 +344,22 @@ func (m *MMUI) RetrieveFromLTM(ctx context.Context, queryInput interface{}, opti
 		} else if limit, ok := q["limit"].(int); ok {
 			query.Limit = limit
 		}
+		// Extract embedding if provided directly
+		if embedding, ok := q["embedding"].([]float32); ok {
+			query.Embedding = embedding
+		}
 	default:
 		// For any other type, return an error
 		return nil, fmt.Errorf("unsupported query type: %T", queryInput)
+	}
+
+	// Check if we need to generate embeddings for semantic search
+	if m.shouldUseSemanticSearch(options.Strategy) && query.Embedding == nil && query.Text != "" {
+		// Generate an embedding for the query text
+		if err := m.generateQueryEmbedding(ctx, &query); err != nil {
+			// Log error but continue with non-semantic search
+			log.WarnContext(ctx, "Failed to generate query embedding", "error", err)
+		}
 	}
 
 	// Apply Lua hooks if enabled
@@ -227,6 +373,12 @@ func (m *MMUI) RetrieveFromLTM(ctx context.Context, queryInput interface{}, opti
 	}
 
 	// Perform the retrieval
+	log.Debug("Retrieving from LTM", 
+		"strategy", options.Strategy,
+		"has_embedding", len(query.Embedding) > 0,
+		"text", query.Text,
+		"limit", query.Limit)
+		
 	results, err := m.ltmStore.Retrieve(ctx, query)
 	if err != nil {
 		return nil, err
@@ -240,6 +392,16 @@ func (m *MMUI) RetrieveFromLTM(ctx context.Context, queryInput interface{}, opti
 			log.WarnContext(ctx, "Error in after_retrieve hook", "error", err)
 		}
 	}
+	
+	// If semantic search requested, sort by semantic relevance using rank_semantic_results Lua hook
+	if len(query.Embedding) > 0 && len(results) > 0 && 
+		m.config.EnableLuaHooks && m.scriptEngine != nil {
+		results, err = m.rankSemanticResults(ctx, results, query)
+		if err != nil {
+			// Log the error but continue
+			log.WarnContext(ctx, "Error in rank_semantic_results hook", "error", err)
+		}
+	}
 
 	// Remove metadata if not requested
 	if !options.IncludeMetadata {
@@ -248,6 +410,76 @@ func (m *MMUI) RetrieveFromLTM(ctx context.Context, queryInput interface{}, opti
 		}
 	}
 
+	log.Debug("Retrieved results from LTM", 
+		"count", len(results),
+		"strategy", options.Strategy)
+
+	return results, nil
+}
+
+// shouldUseSemanticSearch determines if semantic search should be used.
+func (m *MMUI) shouldUseSemanticSearch(strategy string) bool {
+	// Skip if vector operations are disabled
+	if !m.config.EnableVectorOperations {
+		return false
+	}
+	
+	// Skip if reasoning engine is not available
+	if m.reasoningEngine == nil {
+		return false
+	}
+	
+	// Check if the LTM store supports vector operations
+	vectorStore, ok := m.ltmStore.(ltm.VectorCapableLTMStore)
+	if !ok || !vectorStore.SupportsVectorSearch() {
+		return false
+	}
+	
+	// Check if strategy explicitly requests semantic search
+	return strategy == "semantic"
+}
+
+// generateQueryEmbedding generates an embedding for a text query.
+func (m *MMUI) generateQueryEmbedding(ctx context.Context, query *ltm.LTMQuery) error {
+	if query.Text == "" || m.reasoningEngine == nil {
+		return nil
+	}
+	
+	embeddings, err := m.reasoningEngine.GenerateEmbeddings(ctx, []string{query.Text})
+	if err != nil {
+		return err
+	}
+	
+	if len(embeddings) > 0 {
+		query.Embedding = embeddings[0]
+		log.Debug("Generated query embedding", 
+			"dimensions", len(query.Embedding),
+			"text", truncateString(query.Text, 30))
+	}
+	
+	return nil
+}
+
+// rankSemanticResults uses Lua to re-rank semantic search results if available.
+func (m *MMUI) rankSemanticResults(ctx context.Context, results []ltm.MemoryRecord, query ltm.LTMQuery) ([]ltm.MemoryRecord, error) {
+	if m.scriptEngine == nil {
+		return results, nil
+	}
+	
+	// Call Lua hook with results and query
+	ranked, err := m.scriptEngine.ExecuteFunction(ctx, rankSemanticResultsFuncName, results, query.Text)
+	if err != nil {
+		// Log the error but continue
+		log.DebugContext(ctx, "Error calling rank_semantic_results hook", "error", err)
+		return results, nil
+	}
+	
+	// Try to convert the result back to []ltm.MemoryRecord
+	if rankedRecords, ok := ranked.([]ltm.MemoryRecord); ok {
+		return rankedRecords, nil
+	}
+	
+	// If we couldn't convert, just return the original results
 	return results, nil
 }
 

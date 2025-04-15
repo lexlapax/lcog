@@ -74,3 +74,12 @@ type LTMStore interface {
 	// It enforces entity isolation, preventing deletion of records from other entities.
 	Delete(ctx context.Context, id string) error
 }
+
+// VectorCapableLTMStore extends the base LTMStore interface with vector capabilities.
+// Adapters that implement this interface can perform vector-based semantic search operations.
+type VectorCapableLTMStore interface {
+	LTMStore
+	
+	// SupportsVectorSearch indicates that this LTM store supports vector operations.
+	SupportsVectorSearch() bool
+}

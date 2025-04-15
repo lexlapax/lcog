@@ -12,13 +12,13 @@ import (
 )
 
 func getAPIKey() string {
-	// Try loading from environment variable first
-	apiKey := ""
-	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
-		return apiKey
+	// Try loading from environment variable
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		// Log a warning - key should be set in environment
+		// We no longer return a hardcoded key for security
+		println("WARNING: OPENAI_API_KEY environment variable not set")
 	}
-
-	// Use the key from the config file
 	return apiKey
 }
 

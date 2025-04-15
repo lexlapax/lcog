@@ -2,15 +2,34 @@ package mmu
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/mock"
+	"github.com/lexlapax/cogmem/pkg/reasoning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockVectorCapableLTMStore implements ltm.VectorCapableLTMStore for testing
+type mockVectorCapableLTMStore struct {
+	*mock.MockStore
+	supportsVectors bool
+}
+
+func newMockVectorStore(supportsVectors bool) *mockVectorCapableLTMStore {
+	return &mockVectorCapableLTMStore{
+		MockStore:       mock.NewMockStore(),
+		supportsVectors: supportsVectors,
+	}
+}
+
+func (m *mockVectorCapableLTMStore) SupportsVectorSearch() bool {
+	return m.supportsVectors
+}
 
 // mockScriptEngine implements a simple mock for the scripting.Engine interface
 type mockScriptEngine struct {
@@ -29,6 +48,60 @@ func newMockScriptEngine() *mockScriptEngine {
 	return &mockScriptEngine{
 		functionResults: make(map[string]interface{}),
 	}
+}
+
+// mockReasoningEngine implements a simple mock for the reasoning.Engine interface
+type mockReasoningEngine struct {
+	// Map of expected function calls to results
+	embeddingResults map[string][]float32
+	processResults   map[string]string
+	// Record of function calls
+	calls []mockCall
+}
+
+func newMockReasoningEngine() *mockReasoningEngine {
+	return &mockReasoningEngine{
+		embeddingResults: make(map[string][]float32),
+		processResults:   make(map[string]string),
+	}
+}
+
+// GenerateEmbeddings mocks the generation of embeddings.
+func (m *mockReasoningEngine) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	m.calls = append(m.calls, mockCall{
+		FunctionName: "GenerateEmbeddings",
+		Args:         []interface{}{texts},
+	})
+
+	// Return a mock embedding for each text
+	embeddings := make([][]float32, len(texts))
+	for i, text := range texts {
+		// Return a predefined embedding if available
+		if emb, ok := m.embeddingResults[text]; ok {
+			embeddings[i] = emb
+		} else {
+			// Generate a default mock embedding - for tests only
+			embeddings[i] = []float32{0.1, 0.2, 0.3, 0.4, 0.5}
+		}
+	}
+	
+	return embeddings, nil
+}
+
+// Process mocks sending a prompt to the reasoning engine.
+func (m *mockReasoningEngine) Process(ctx context.Context, prompt string, opts ...reasoning.Option) (string, error) {
+	m.calls = append(m.calls, mockCall{
+		FunctionName: "Process",
+		Args:         []interface{}{prompt},
+	})
+	
+	// Return a predefined response if available
+	if response, ok := m.processResults[prompt]; ok {
+		return response, nil
+	}
+	
+	// Return a default mock response
+	return "Mock response to: " + prompt, nil
 }
 
 func (m *mockScriptEngine) LoadScript(name string, content []byte) error {
@@ -64,26 +137,49 @@ func (m *mockScriptEngine) Close() error {
 }
 
 // Helper function to set up a test environment
-func setupTest(t *testing.T, enableLuaHooks bool) (*MMUI, *mock.MockStore, *mockScriptEngine, context.Context) {
+func setupTest(t *testing.T, enableLuaHooks bool) (*MMUI, *mock.MockStore, *mockScriptEngine, *mockReasoningEngine, context.Context) {
 	// Create mock dependencies
 	ltmStore := mock.NewMockStore()
 	scriptEngine := newMockScriptEngine()
+	reasoningEngine := newMockReasoningEngine()
 	
 	// Create MMU with configuration
-	mmu := NewMMU(ltmStore, scriptEngine, Config{
+	mmu := NewMMU(ltmStore, reasoningEngine, scriptEngine, Config{
 		EnableLuaHooks: enableLuaHooks,
+		EnableVectorOperations: false, // Default to disabled for backward compatibility
 	})
 	
 	// Create a context with entity information
 	entityCtx := entity.NewContext("test-entity", "test-user")
 	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
-	return mmu, ltmStore, scriptEngine, ctx
+	return mmu, ltmStore, scriptEngine, reasoningEngine, ctx
+}
+
+// Helper function to set up a test environment with a vector-capable store
+func setupVectorTest(t *testing.T, supportsVectors bool) (*MMUI, *mockVectorCapableLTMStore, *mockScriptEngine, *mockReasoningEngine, context.Context) {
+	// Create mock dependencies
+	ltmStore := newMockVectorStore(supportsVectors)
+	scriptEngine := newMockScriptEngine()
+	reasoningEngine := newMockReasoningEngine()
+	
+	// Create MMU with configuration
+	mmu := NewMMU(ltmStore, reasoningEngine, scriptEngine, Config{
+		EnableLuaHooks: true,
+		EnableVectorOperations: true,
+		WorkingMemoryLimit: 5,
+	})
+	
+	// Create a context with entity information
+	entityCtx := entity.NewContext("test-entity", "test-user")
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
+	
+	return mmu, ltmStore, scriptEngine, reasoningEngine, ctx
 }
 
 func TestMMU_EncodeToLTM_String(t *testing.T) {
 	// Setup
-	mmu, ltmStore, _, ctx := setupTest(t, false)
+	mmu, ltmStore, _, _, ctx := setupTest(t, false)
 	
 	// Test encoding a simple string
 	memoryID, err := mmu.EncodeToLTM(ctx, "This is a test memory")
@@ -112,7 +208,7 @@ func TestMMU_EncodeToLTM_String(t *testing.T) {
 
 func TestMMU_EncodeToLTM_Map(t *testing.T) {
 	// Setup
-	mmu, ltmStore, _, ctx := setupTest(t, false)
+	mmu, ltmStore, _, _, ctx := setupTest(t, false)
 	
 	// Test encoding a map with content and metadata
 	memoryData := map[string]interface{}{
@@ -146,7 +242,7 @@ func TestMMU_EncodeToLTM_Map(t *testing.T) {
 
 func TestMMU_EncodeToLTM_NoEntityContext(t *testing.T) {
 	// Setup without entity context
-	mmu, _, _, _ := setupTest(t, false)
+	mmu, _, _, _, _ := setupTest(t, false)
 	
 	// Should fail without entity context
 	_, err := mmu.EncodeToLTM(context.Background(), "This should fail")
@@ -156,7 +252,7 @@ func TestMMU_EncodeToLTM_NoEntityContext(t *testing.T) {
 
 func TestMMU_RetrieveFromLTM_StringQuery(t *testing.T) {
 	// Setup
-	mmu, ltmStore, _, ctx := setupTest(t, false)
+	mmu, ltmStore, _, _, ctx := setupTest(t, false)
 	
 	// First store some test data
 	testRecords := []ltm.MemoryRecord{
@@ -193,7 +289,7 @@ func TestMMU_RetrieveFromLTM_StringQuery(t *testing.T) {
 
 func TestMMU_RetrieveFromLTM_MapQuery(t *testing.T) {
 	// Setup
-	mmu, ltmStore, _, ctx := setupTest(t, false)
+	mmu, ltmStore, _, _, ctx := setupTest(t, false)
 	
 	// First store some test data
 	now := time.Now()
@@ -253,7 +349,7 @@ func TestMMU_RetrieveFromLTM_MapQuery(t *testing.T) {
 
 func TestMMU_RetrieveFromLTM_WithLuaHooks(t *testing.T) {
 	// Setup with Lua hooks enabled
-	mmu, ltmStore, scriptEngine, ctx := setupTest(t, true)
+	mmu, ltmStore, scriptEngine, _, ctx := setupTest(t, true)
 	
 	// Store a test record
 	record := ltm.MemoryRecord{
@@ -342,9 +438,149 @@ func TestMMU_RetrieveFromLTM_WithLuaHooks(t *testing.T) {
 
 func TestMMU_ConsolidateLTM(t *testing.T) {
 	// Setup
-	mmu, _, _, ctx := setupTest(t, false)
+	mmu, _, _, _, ctx := setupTest(t, false)
 	
 	// Test the placeholder implementation
 	err := mmu.ConsolidateLTM(ctx, "test insight")
 	assert.NoError(t, err)
+}
+
+func TestMMU_EncodeToLTM_WithEmbedding(t *testing.T) {
+	// Setup with a vector-capable store
+	mmu, ltmStore, _, reasoningEngine, ctx := setupVectorTest(t, true)
+	
+	// Set up a custom embedding result
+	customEmbedding := []float32{0.5, 0.5, 0.5, 0.5, 0.5}
+	reasoningEngine.embeddingResults["Test content for embedding"] = customEmbedding
+	
+	// Test encoding a string that should generate an embedding
+	memoryID, err := mmu.EncodeToLTM(ctx, "Test content for embedding")
+	require.NoError(t, err)
+	
+	// Verify the embedding was generated and stored
+	query := ltm.LTMQuery{
+		ExactMatch: map[string]interface{}{
+			"ID": memoryID,
+		},
+	}
+	records, err := ltmStore.Retrieve(ctx, query)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	
+	// Verify record contents
+	record := records[0]
+	assert.Equal(t, "Test content for embedding", record.Content)
+	assert.NotNil(t, record.Embedding)
+	assert.Equal(t, customEmbedding, record.Embedding)
+	
+	// Verify the reasoning engine was called
+	foundEmbeddingCall := false
+	for _, call := range reasoningEngine.calls {
+		if call.FunctionName == "GenerateEmbeddings" {
+			foundEmbeddingCall = true
+			if args, ok := call.Args[0].([]string); ok {
+				assert.Contains(t, args, "Test content for embedding")
+			}
+		}
+	}
+	assert.True(t, foundEmbeddingCall, "GenerateEmbeddings should have been called")
+}
+
+func TestMMU_EncodeToLTM_NoEmbeddingForNonVectorStore(t *testing.T) {
+	// Setup with a non-vector-capable store
+	mmu, ltmStore, _, reasoningEngine, ctx := setupVectorTest(t, false)
+	
+	// Test encoding a string that should NOT generate an embedding
+	memoryID, err := mmu.EncodeToLTM(ctx, "Test content without embedding")
+	require.NoError(t, err)
+	
+	// Verify the record was stored without an embedding
+	query := ltm.LTMQuery{
+		ExactMatch: map[string]interface{}{
+			"ID": memoryID,
+		},
+	}
+	records, err := ltmStore.Retrieve(ctx, query)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	
+	// Verify record contents
+	record := records[0]
+	assert.Equal(t, "Test content without embedding", record.Content)
+	assert.Empty(t, record.Embedding, "Embedding should not be generated for non-vector stores")
+	
+	// Verify the reasoning engine was NOT called
+	foundEmbeddingCall := false
+	for _, call := range reasoningEngine.calls {
+		if call.FunctionName == "GenerateEmbeddings" {
+			foundEmbeddingCall = true
+		}
+	}
+	assert.False(t, foundEmbeddingCall, "GenerateEmbeddings should not have been called")
+}
+
+func TestMMU_RetrieveFromLTM_SemanticSearch(t *testing.T) {
+	// Setup with a vector-capable store
+	mmu, ltmStore, _, reasoningEngine, ctx := setupVectorTest(t, true)
+	
+	// Store a test record with an embedding
+	testRecord := ltm.MemoryRecord{
+		ID:          "test-semantic",
+		EntityID:    "test-entity",
+		Content:     "Semantic search test record",
+		AccessLevel: entity.SharedWithinEntity,
+		Embedding:   []float32{0.1, 0.2, 0.3, 0.4, 0.5},
+	}
+	_, err := ltmStore.Store(ctx, testRecord)
+	require.NoError(t, err)
+	
+	// Set up a custom embedding result for the query
+	customQueryEmbedding := []float32{0.15, 0.25, 0.35, 0.45, 0.55}
+	reasoningEngine.embeddingResults["semantic search"] = customQueryEmbedding
+	
+	// Test semantic retrieval
+	options := DefaultRetrievalOptions()
+	options.Strategy = "semantic"
+	results, err := mmu.RetrieveFromLTM(ctx, "semantic search", options)
+	require.NoError(t, err)
+	
+	// Verify we got results
+	assert.NotEmpty(t, results)
+	
+	// Verify query embedding was generated
+	foundEmbeddingCall := false
+	for _, call := range reasoningEngine.calls {
+		if call.FunctionName == "GenerateEmbeddings" {
+			foundEmbeddingCall = true
+			if args, ok := call.Args[0].([]string); ok && len(args) > 0 {
+				assert.Equal(t, "semantic search", args[0])
+			}
+		}
+	}
+	assert.True(t, foundEmbeddingCall, "GenerateEmbeddings should have been called")
+}
+
+func TestMMU_WorkingMemoryOverflow(t *testing.T) {
+	// Setup with a low working memory limit
+	mmu, _, _, _, ctx := setupVectorTest(t, true)
+	
+	// Initially, working memory should be empty
+	assert.Empty(t, mmu.workingMemory)
+	
+	// Add records to working memory directly to test overflow
+	for i := 0; i < 6; i++ {
+		record := ltm.MemoryRecord{
+			ID:       fmt.Sprintf("test-%d", i),
+			EntityID: "test-entity",
+			Content:  fmt.Sprintf("Working memory record %d", i),
+		}
+		mmu.workingMemory = append(mmu.workingMemory, record)
+	}
+	
+	// Now trigger the overflow management
+	mmu.ManageWorkingMemoryOverflow(ctx)
+	
+	// Verify overflow was managed (records were evicted)
+	assert.Less(t, len(mmu.workingMemory), 6, "Working memory should have evicted some records")
+	assert.Equal(t, 3, len(mmu.workingMemory), "Working memory should have half the records after LRU eviction")
 }

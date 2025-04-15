@@ -97,6 +97,7 @@ func main() {
 	// Initialize the MMU
 	mmuInstance := mmu.NewMMU(
 		ltmStore,
+		reasoningEngine,
 		scriptEngine,
 		mmu.DefaultConfig(),
 	)

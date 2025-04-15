@@ -21,6 +21,12 @@ const (
 
 	// afterEncodeFuncName is the name of the Lua function to call after LTM encoding
 	afterEncodeFuncName = "after_encode"
+
+	// beforeEmbeddingFuncName is the name of the Lua function to call before generating embeddings
+	beforeEmbeddingFuncName = "before_embedding"
+
+	// rankSemanticResultsFuncName is the name of the Lua function to call to rank semantic search results
+	rankSemanticResultsFuncName = "rank_semantic_results"
 )
 
 // callBeforeRetrieveHook calls the before_retrieve Lua hook if available
