@@ -154,9 +154,26 @@ func (m *MMUI) EncodeToLTM(ctx context.Context, dataToStore interface{}) (string
 
 	// Generate a unique ID for the record
 	record.ID = uuid.New().String()
+	
+	// Apply Lua hooks if enabled
+	if m.config.EnableLuaHooks && m.scriptEngine != nil {
+		// For Phase 1, just call the hook but don't use its result
+		if m.scriptEngine != nil {
+			m.scriptEngine.ExecuteFunction(ctx, "before_encode", record.Content)
+		}
+	}
 
 	// Store the record in LTM
-	return m.ltmStore.Store(ctx, record)
+	memoryID, err := m.ltmStore.Store(ctx, record)
+	
+	// Apply after_encode hook if enabled
+	if err == nil && m.config.EnableLuaHooks && m.scriptEngine != nil {
+		if m.scriptEngine != nil {
+			m.scriptEngine.ExecuteFunction(ctx, "after_encode", memoryID)
+		}
+	}
+	
+	return memoryID, err
 }
 
 // RetrieveFromLTM implements the MMU interface.

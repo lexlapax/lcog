@@ -189,26 +189,27 @@ func (a *AgentI) handleRetrieve(ctx context.Context, input string) (string, erro
 	
 	log.DebugContext(ctx, "Retrieved memories", "count", len(memories))
 	
-	// Format memories for summarization
+	// Format memories to show the user
 	var memoriesText strings.Builder
+	memoriesText.WriteString(fmt.Sprintf("Found %d memories matching your query:\n\n", len(memories)))
+	
 	for i, memory := range memories {
 		memoriesText.WriteString(fmt.Sprintf("Memory %d: %s\n", i+1, memory.Content))
+		
+		// Add metadata if available
+		if memory.Metadata != nil && len(memory.Metadata) > 0 {
+			createdAt, ok := memory.Metadata["encoded_at"].(string)
+			if ok {
+				memoriesText.WriteString(fmt.Sprintf("  Created: %s\n", createdAt))
+			}
+		}
+		memoriesText.WriteString("\n")
 	}
 	
-	// Use reasoning engine to summarize the retrieved memories
-	prompt := fmt.Sprintf(
-		"Summarize the following retrieved memories:\n\n%s",
-		memoriesText.String(),
-	)
-	
-	summary, err := a.reasoningEngine.Process(ctx, prompt)
-	if err != nil {
-		log.ErrorContext(ctx, "Failed to summarize memories", "error", err)
-		return "", err
-	}
-	
-	log.DebugContext(ctx, "Memories summarized successfully", "summary_length", len(summary))
-	return summary, nil
+	// For lookups, return the actual memories instead of a summary
+	result := memoriesText.String()
+	log.DebugContext(ctx, "Returning memory list", "memory_count", len(memories))
+	return result, nil
 }
 
 // handleQuery processes a query operation

@@ -39,6 +39,7 @@ For each significant piece of functionality:
 2.  **Core Types, Interfaces & Errors:**
     *   **Implement `pkg/entity` (TDD):** Test and implement `EntityID`, `AccessLevel`, `entity.Context` struct, and context helper functions.
     *   **Implement `pkg/errors` (TDD):** Test and implement initial custom error types/variables.
+    *   **Implement `slog` logging (TDD):** Test and implement slog logging, info, warn debug etc.
     *   **Define Core Interfaces:**
         *   Define `LTMStore` interface (`pkg/mem/ltm/ltm.go`) supporting CRUD operations, accepting `context.Context`. Define `MemoryRecord` struct here.
         *   Define `MMU` interface (`pkg/mmu/mmu.go`) with initial methods for `EncodeToLTM`, `RetrieveFromLTM`, and a placeholder `ConsolidateLTM`.

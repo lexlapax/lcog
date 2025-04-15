@@ -123,12 +123,13 @@ For each significant piece of functionality within this phase:
 
 ### Step 12: Example Application (`cmd/example-agent/`)
 
-*   **12.1. Implement:** Create `cmd/example-agent/main.go`. The application should:
+*   **12.1. Implement (TDD):** Create `cmd/example-agent/main.go`. The application should:
     *   Load configuration (`pkg/config`).
     *   Instantiate the selected `LTMStore` (SQLite or BoltDB based on config).
     *   Instantiate the `ScriptingEngine` and load scripts from the configured path.
     *   Instantiate the mock `ReasoningEngine`.
     *   Instantiate the `pkg/agent.Agent` by injecting dependencies.
+    *   Implement command line editing via `liner` package and test
     *   Run a simple command-line loop:
         *   Read user input.
         *   Prompt for an Entity ID.
@@ -136,6 +137,7 @@ For each significant piece of functionality within this phase:
         *   Call `Agent.Process(...)` with the input and context.
         *   Print the result.
         *   Include specific commands like `!remember <text>` (calls `MMU.EncodeToLTM`) and `!lookup <query>` (calls `MMU.RetrieveFromLTM`).
+    
 *   **12.2. Manual Test:** Run the example application against both SQLite and BoltDB configurations.
     *   Verify `!remember` stores data for the specified entity.
     *   Verify querying retrieves data only for the current entity.

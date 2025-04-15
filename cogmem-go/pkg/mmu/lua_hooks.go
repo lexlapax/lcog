@@ -96,23 +96,15 @@ func callAfterRetrieveHook(
 		return results, nil
 	}
 
-	// Convert the results to a simpler format for Lua
-	luaResults := make([]map[string]interface{}, len(results))
-	for i, record := range results {
-		luaResults[i] = map[string]interface{}{
-			"id":           record.ID,
-			"entity_id":    string(record.EntityID),
-			"user_id":      record.UserID,
-			"access_level": int(record.AccessLevel),
-			"content":      record.Content,
-			"metadata":     record.Metadata,
-			"created_at":   record.CreatedAt.Unix(),
-			"updated_at":   record.UpdatedAt.Unix(),
-		}
+	// For simplicity in Phase 1, just pass the number of results and a preview
+	// This is safer than trying to pass complex structures to Lua
+	summary := fmt.Sprintf("Found %d results", len(results))
+	if len(results) > 0 {
+		summary = fmt.Sprintf("Found %d results, first one: %s", len(results), results[0].Content)
 	}
 
-	// Try to call the hook function
-	result, err := engine.ExecuteFunction(ctx, afterRetrieveFuncName, luaResults)
+	// Try to call the hook function with a simple string instead of complex structures
+	result, err := engine.ExecuteFunction(ctx, afterRetrieveFuncName, summary)
 	if err != nil {
 		// If the function doesn't exist, that's ok - just continue
 		if err.Error() == fmt.Sprintf("%v: %s", scripting.ErrFunctionNotFound, afterRetrieveFuncName) {
@@ -125,29 +117,12 @@ func callAfterRetrieveHook(
 		return results, nil
 	}
 
-	// If the function returned nil or not a slice, just use the original results
-	resultSlice, ok := result.([]interface{})
-	if !ok {
-		return results, nil
-	}
-
-	// If the function returned an empty slice, return empty results
-	if len(resultSlice) == 0 {
-		return []ltm.MemoryRecord{}, nil
-	}
-
-	// The hook might have filtered or re-ranked the results
-	// Just return the original results in the original order if found in the returned results
-	// This is a simplification - in a real implementation we would 
-	// properly convert back from Lua objects to MemoryRecord objects
-	
-	// For now, if the number of results changed, we'll just log and return the original
-	if len(resultSlice) != len(results) {
-		log.WarnContext(ctx, "Lua hook returned a different number of results than provided", 
+	// In Phase 1, we just acknowledge the script was called
+	// but we don't modify the results based on the return value
+	if resultStr, ok := result.(string); ok {
+		log.DebugContext(ctx, "Lua hook processed results", 
 			"hook", afterRetrieveFuncName,
-			"expected", len(results),
-			"actual", len(resultSlice))
-		return results, nil
+			"result", resultStr)
 	}
 
 	return results, nil

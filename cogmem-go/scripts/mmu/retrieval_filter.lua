@@ -18,13 +18,12 @@ function before_retrieve(query)
 end
 
 -- Called after LTMStore.Retrieve returns results
-function after_retrieve(results)
-  -- Log the number of results
-  cogmem.log("info", "MMU after_retrieve processing " .. #results .. " results")
+function after_retrieve(summary)
+  -- Log the summary of results
+  cogmem.log("info", "MMU after_retrieve: " .. summary)
   
-  -- You can filter or re-rank the results here
-  -- This example just returns them as-is
-  return results
+  -- In Phase 1, we just return the summary as is
+  return summary
 end
 
 -- Called before encoding to LTM (placeholder)
