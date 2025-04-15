@@ -13,15 +13,20 @@ ltm:
   type: "mock"
   
   # SQL Store Backend Configuration
-  sql:
+  sqlstore:
     # Driver can be "postgres" or "sqlite"
     driver: "sqlite"
-    dsn: "./data/cogmem.db"
+    sqlite:
+      path: "./data/cogmem.db"
+    postgres:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
   
   # KV (Key-Value) Backend Configuration
   kv:
     # Provider can be "boltdb", "redis", or "postgres_hstore"
     provider: "boltdb"
+    boltdb:
+      path: "./data/cogmem.bolt.db"
     redis:
       addr: "localhost:6379"
       password: ""
@@ -29,11 +34,33 @@ ltm:
     postgres_hstore:
       dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
   
-  # ChromemGo (Vector DB) Configuration
-  chromemgo:
-    url: "http://localhost:8080"
-    collection: "memories"
-    dimensions: 1536
+  # Vector Database Configuration
+  vector:
+    # Provider can be "postgres", "milvus", or "weaviate" or "chromemgo"
+    provider: "postgres"
+    postgres:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+    milvus:
+      addr: "localhost:19530"
+    weaviate:
+      addr: "localhost:8080"
+    chromemgo:
+      url: "http://localhost:8080"
+      collection: "memories"
+      dimensions: 1536
+
+  # Graph Database Configuration
+  graph:
+    # Provider can be "neo4j", "dgraph", or "postgres"
+    provider: "postgres"
+    neo4j:
+      uri: "bolt://localhost:7687"
+      username: "neo4j"
+      password: "password"
+    dgraph:
+      addr: "localhost:9080"
+    postgres:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
 
 # Scripting Configuration
 scripting:
@@ -55,7 +82,7 @@ mmu:
 # Reasoning Engine Configuration
 reasoning:
   # Provider can be "openai", "anthropic", or "mock"
-  provider: "mock"
+  provider: "openai"
   openai:
     api_key: "${OPENAI_API_KEY}"
     model: "gpt-4"
