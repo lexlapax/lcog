@@ -192,15 +192,15 @@ make dev-db-down
 
 Understand the project goals, design, and plan:
 
-* **Product Requirements:** [./prd.md](./prd.md)
-* **Architecture:** [./architecture.md](./architecture.md)
-* **Implementation Plan:** [./implementation-plan.md](./implementation-plan.md)
+* **Product Requirements:** [./docs/prd.md](./docs/prd.md)
+* **Architecture:** [./docs/architecture.md](./docs/architecture.md)
+* **Implementation Plan:** [./docs/implementation-plan.md](./docs/implementation-plan.md)
 * **Structure Philosophy:** [./project-structure.md](./project-structure.md)
 
 Feature Documentation:
 
-* **RAG (Retrieval-Augmented Generation):** [./cogmem-go/docs/rag.md](./cogmem-go/docs/rag.md)
-* **Reflection Module:** [./cogmem-go/docs/reflection.md](./cogmem-go/docs/reflection.md)
+* **RAG (Retrieval-Augmented Generation):** [./docs/rag.md](./docs/rag.md)
+* **Reflection Module:** [./docs/reflection.md](./docs/reflection.md)
 
 ## Core Components
 
@@ -275,14 +275,14 @@ Note: The previous "Agent" interface has been renamed to "CogMemClient" for clar
 
 ```
 cogmem/                      # Root project directory
-├── architecture.md          # Architecture documentation
+├── CLAUDE.md                # Instructions for Claude AI assistant
+├── CONTRIBUTING.md          # Contribution guidelines
+├── README.md                # Project README
+├── project-structure.md     # Project structure guidelines
 ├── cogmem-go/               # Golang implementation
 │   ├── cmd/
 │   │   └── example-client/  # Command-line client application
 │   ├── configs/             # Configuration files
-│   ├── docs/                # Additional documentation
-│   │   ├── rag.md           # RAG capabilities documentation
-│   │   └── reflection.md    # Reflection module documentation
 │   ├── migrations/          # SQL migration files
 │   ├── pkg/                 # Public library code (main library)
 │   │   ├── cogmem/          # CogMemClient facade & controller
@@ -307,10 +307,16 @@ cogmem/                      # Root project directory
 │   └── test/                # Tests
 │       ├── integration/     # Integration tests
 │       └── testutil/        # Test helpers
-├── impl-01-phase-1-plan.md  # Phase 1 implementation plan
-├── impl-02-phase-2-plan.md  # Phase 2 implementation plan
-├── implementation-plan.md   # Overall implementation plan
-└── prd.md                   # Product requirements document
+└── docs/                    # Documentation
+    ├── architecture.md      # Architecture documentation
+    ├── cogmem-whitepaper-draft.md # Whitepaper draft
+    ├── impl-01-phase-1-plan.md # Phase 1 implementation plan
+    ├── impl-02-phase-2-plan.md # Phase 2 implementation plan
+    ├── implementation-plan.md # Overall implementation plan
+    ├── prd.md               # Product requirements document
+    ├── project-structure-template.md # Project structure template
+    ├── rag.md               # RAG capabilities documentation
+    └── reflection.md        # Reflection module documentation
 ```
 
 ## Running Tests

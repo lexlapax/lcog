@@ -6,7 +6,7 @@
 
 ## 1. Introduction
 
-This document outlines the proposed directory structure for the **CogMem Golang Library**. The structure aims to be clean, scalable, and maintainable, reflecting the modular architecture defined in `architecture.md` and adhering to Go community best practices alongside the principles of Layered Architecture and Module/Package-based organization.
+This document outlines the proposed directory structure for the **CogMem Golang Library**. The structure aims to be clean, scalable, and maintainable, reflecting the modular architecture defined in `docs/architecture.md` and adhering to Go community best practices alongside the principles of Layered Architecture and Module/Package-based organization.
 
 The goal is to create a structure that:
 *   Clearly separates public API (`pkg/`) from internal implementation details (`internal/`).

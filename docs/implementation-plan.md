@@ -8,7 +8,7 @@
 
 ## 1. Introduction
 
-This document outlines a detailed 3-phase implementation plan for the CogMem Golang Library, designed to align with the `project-structure.md` (v1.0 rev 2). The plan adopts a **Test-First Development (TFD)** approach and explicitly builds towards the architectural goal of supporting **hybrid Long-Term Memory (LTM)** configurations, where an agent can leverage multiple storage backends (e.g., SQL, KV, Vector, Graph) simultaneously.
+This document outlines a detailed 3-phase implementation plan for the CogMem Golang Library, designed to align with the `../project-structure.md` (v1.0 rev 2). The plan adopts a **Test-First Development (TFD)** approach and explicitly builds towards the architectural goal of supporting **hybrid Long-Term Memory (LTM)** configurations, where an agent can leverage multiple storage backends (e.g., SQL, KV, Vector, Graph) simultaneously.
 
 *   **Phase 1:** Focuses on establishing the foundational library structure, core interfaces, testing infrastructure, implementing basic **single-instance** LTM capabilities using **SQLite** and **BoltDB**, integrating Lua scripting, and ensuring robust multi-entity context handling. This lays the groundwork for individual storage types.
 *   **Phase 2:** Centers on adding **Vector LTM** capabilities (initially **Chromem-go**) for Retrieval-Augmented Generation (RAG), implementing embedding generation, and introducing the basic reflection module. The MMU will learn to handle vector-specific operations, still likely operating primarily against one *type* of backend at a time or with very basic routing.
@@ -32,7 +32,7 @@ For each significant piece of functionality:
 1.  **Project Initialization & Setup:**
     *   Initialize Git repository.
     *   Initialize Go module.
-    *   Create the standard top-level directory structure (`pkg/`, `internal/`, `cmd/`, `configs/`, `scripts/`, `migrations/`, `test/`) and required subdirectories within `pkg/` based on `project-structure.md` (including adapters for mock, sqlite, boltdb).
+    *   Create the standard top-level directory structure (`pkg/`, `internal/`, `cmd/`, `configs/`, `scripts/`, `migrations/`, `test/`) and required subdirectories within `pkg/` based on `../project-structure.md` (including adapters for mock, sqlite, boltdb).
     *   Add `.gitignore`, `README.md`, `LICENSE`.
     *   Setup basic CI pipeline (e.g., GitHub Actions) for builds and tests.
 
