@@ -13,7 +13,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/lexlapax/cogmem/pkg/agent"
+	"github.com/lexlapax/cogmem/pkg/cogmem"
 	"github.com/lexlapax/cogmem/pkg/config"
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/log"
@@ -41,7 +41,7 @@ const (
 
 // Command-line help text
 const helpText = `
-CogMem Example Agent - Command Reference:
+CogMem Client - Command Reference:
 -----------------------------------------
 !help                 - Show this help message
 !entity <id>          - Set the current entity ID
@@ -67,7 +67,7 @@ func main() {
 		Format: log.TextFormat,
 	})
 
-	log.Info("Starting CogMem example agent")
+	log.Info("Starting CogMem client")
 
 	// Load configuration
 	cfg, err := loadConfig()
@@ -102,16 +102,16 @@ func main() {
 		mmu.DefaultConfig(),
 	)
 
-	// Initialize the Agent with all components
-	agentInstance := agent.NewAgent(
+	// Initialize the CogMemClient with all components
+	clientInstance := cogmem.NewCogMemClient(
 		mmuInstance,
 		reasoningEngine,
 		scriptEngine,
-		agent.DefaultConfig(),
+		cogmem.DefaultConfig(),
 	)
 
 	// Start the command-line interface
-	runCLI(agentInstance, cfg)
+	runCLI(clientInstance, cfg)
 }
 
 // loadConfig loads the application configuration
@@ -340,7 +340,7 @@ func initReasoningEngine(cfg *config.Config) reasoning.Engine {
 }
 
 // runCLI starts the command-line interface for user interaction
-func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
+func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 	// Initialize with default entity and user
 	currentEntity := entity.EntityID("default-entity")
 	currentUser := "default-user"
@@ -380,7 +380,7 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 	}()
 
 	// Print welcome message
-	fmt.Println("\n=== CogMem Example Agent ===")
+	fmt.Println("\n=== CogMem Client ===")
 	fmt.Println("LTM Store:", cfg.LTM.Type)
 	if cfg.LTM.Type == "sql" {
 		fmt.Println("SQL Driver:", cfg.LTM.SQL.Driver)
@@ -474,7 +474,7 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 				}
 				
 				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := agentInstance.Process(ctx, agent.InputTypeStore, memory)
+				response, err := clientInstance.Process(ctx, cogmem.InputTypeStore, memory)
 				if err != nil {
 					fmt.Printf("Error storing memory: %v\n", err)
 				} else {
@@ -496,7 +496,7 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 				}
 				
 				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := agentInstance.Process(ctx, agent.InputTypeRetrieve, query)
+				response, err := clientInstance.Process(ctx, cogmem.InputTypeRetrieve, query)
 				if err != nil {
 					fmt.Printf("Error looking up memories: %v\n", err)
 				} else {
@@ -518,7 +518,7 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 				}
 				
 				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := agentInstance.Process(ctx, agent.InputTypeQuery, question)
+				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, question)
 				if err != nil {
 					fmt.Printf("Error querying: %v\n", err)
 				} else {
@@ -547,7 +547,7 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 		} else {
 			// Treat as a query by default
 			ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-			response, err := agentInstance.Process(ctx, agent.InputTypeQuery, input)
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, input)
 			if err != nil {
 				fmt.Printf("Error processing query: %v\n", err)
 			} else {
