@@ -21,7 +21,7 @@ This project is currently in Phase 1 of development, which is now complete. Phas
 - Long-term memory with SQLite and BoltDB adapters
 - Lua scripting with custom hooks for memory operations
 - Memory Management Unit (MMU) for encoding/retrieving memories
-- Agent facade for orchestrating component interactions
+- CogMemClient facade for orchestrating component interactions
 - Example command-line application
 
 ## Getting Started
@@ -41,12 +41,12 @@ go mod download
 make deps  # Install dependencies
 ```
 
-### Running the Example Agent
+### Running the Example Client
 
-The example agent provides a simple command-line interface to interact with the CogMem system:
+The example client provides a simple command-line interface to interact with the CogMem system:
 
 ```bash
-# Build and run the example agent
+# Build and run the example client
 make run
 
 # Or build and run manually
@@ -54,7 +54,7 @@ go build -o bin/example-agent ./cmd/example-agent
 ./bin/example-agent
 ```
 
-The example agent supports the following commands:
+The example client supports the following commands:
 
 - `!help` - Show help message
 - `!entity <id>` - Set the current entity ID
@@ -70,7 +70,7 @@ The example agent supports the following commands:
 ```
 $ ./bin/example-agent
 
-=== CogMem Example Agent ===
+=== CogMem Client ===
 LTM Store: kv
 KV Provider: boltdb
 Current Entity: default-entity | Current User: default-user
@@ -193,25 +193,28 @@ CogMem includes a sandboxed Lua scripting engine for customization:
 - Script directory scanning and loading
 - API for interacting with Go code
 
-### Agent Facade
+### CogMemClient Facade
 
-The Agent provides a unified interface to the CogMem system:
+The CogMemClient provides a unified interface to the CogMem system:
 
 - Processing different input types (store, retrieve, query)
 - Coordinating between MMU and reasoning components
 - Tracking operations for reflection
 - Managing entity context propagation
 
+Note: The previous "Agent" interface has been renamed to "CogMemClient" for clarity, with a backward compatibility layer provided.
+
 ## Project Structure
 
 ```
 cogmem-go/
 ├── cmd/
-│   └── example-agent/     # Command-line agent application
+│   └── example-agent/     # Command-line client application
 ├── configs/               # Configuration files
 ├── migrations/            # SQL migration files
 ├── pkg/                   # Public library code (main library)
-│   ├── agent/             # Agent facade & controller
+│   ├── agent/             # Backward compatibility layer (deprecated)
+│   ├── cogmem/            # CogMemClient facade & controller
 │   ├── config/            # Configuration loading
 │   ├── entity/            # Entity IDs and access levels
 │   ├── errors/            # Custom error types
