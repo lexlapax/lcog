@@ -75,3 +75,8 @@ go.work
 /build/
 /bin/
 /dist/
+
+
+# cogmem files
+.cogmem_history
+cogmem-go/.cogmem_history

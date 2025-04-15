@@ -31,3 +31,7 @@ go.work
 
 # Generated SQL code
 pkg/mem/ltm/adapters/sqlstore/sqlc.gen.go
+
+
+# cogmem files
+.cogmem_history

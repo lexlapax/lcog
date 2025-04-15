@@ -149,7 +149,7 @@ For each significant piece of functionality:
 **Detailed Steps:**
 
 1.  **Testing Infrastructure:**
-    *   **Setup Graph DBs:** Add services for required graph databases (e.g., cayley Postgres+Age, Neo4j) 
+    *   **Setup Graph DBs:** Add services for required graph databases (e.g., cayley, Postgres+Age, Neo4j) 
     *   **Update Helpers:** Enhance `test/testutil/` for graph database management.
 
 2.  **Graph LTM Adapter Capability (`pkg/mem/ltm/adapters/graph/`):**
