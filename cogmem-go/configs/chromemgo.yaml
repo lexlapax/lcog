@@ -17,6 +17,7 @@ ltm:
     url: "http://localhost:8080"
     collection: "memories"
     dimensions: 1536
+    storage_path: "./data/chromemgo"  # Path for on-disk persistent storage
 
 # Scripting Configuration
 scripting:

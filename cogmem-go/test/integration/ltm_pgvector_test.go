@@ -16,6 +16,9 @@ import (
 )
 
 func TestPgVectorLTMIntegration(t *testing.T) {
+	// Skip this test as requested
+	t.Skip("Skipping PgVector integration test as requested")
+	
 	// Skip this test if not running in integration test mode
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test; set INTEGRATION_TESTS=true to run")

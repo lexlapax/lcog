@@ -71,6 +71,52 @@ func NewChromemGoAdapter(client *chromem.DB, collectionName string) (*ChromemGoA
 	}, nil
 }
 
+// NewChromemGoAdapterWithConfig creates a new ChromemGo adapter using the provided configuration
+func NewChromemGoAdapterWithConfig(config *ChromemGoConfig) (*ChromemGoAdapter, error) {
+	if config == nil {
+		return nil, errors.New("config cannot be nil")
+	}
+
+	if config.Collection == "" {
+		return nil, errors.New("collection name cannot be empty")
+	}
+
+	var client *chromem.DB
+	
+	// Use persistent storage if a storage path is provided
+	if config.StoragePath != "" {
+		log.Debug("Using persistent storage for ChromemGo", "path", config.StoragePath)
+		// Use NewPersistentDB for on-disk storage
+		// Second parameter controls concurrent access (set to false for better reliability)
+		var err error
+		client, err = chromem.NewPersistentDB(config.StoragePath, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create persistent chromem-go client: %w", err)
+		}
+	} else {
+		log.Debug("Using in-memory storage for ChromemGo")
+		// Use NewDB for in-memory storage
+		client = chromem.NewDB()
+	}
+	
+	if client == nil {
+		return nil, errors.New("failed to create chromem-go client")
+	}
+
+	// Create the adapter with the client
+	return NewChromemGoAdapter(client, config.Collection)
+}
+
+// ChromemGoConfig holds configuration options for the ChromemGo adapter
+type ChromemGoConfig struct {
+	// Collection is the collection name to use
+	Collection string
+	// StoragePath is the path for on-disk storage (if empty, in-memory is used)
+	StoragePath string
+	// Dimensions specifies the embedding dimensions (default 1536)
+	Dimensions int
+}
+
 // Store persists a memory record to chromem-go
 func (a *ChromemGoAdapter) Store(ctx context.Context, record ltm.MemoryRecord) (string, error) {
 	// Use the existing ID or generate a new one
@@ -185,23 +231,46 @@ func (a *ChromemGoAdapter) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]
 
 // retrieveByID retrieves a record by its ID
 func (a *ChromemGoAdapter) retrieveByID(ctx context.Context, recordID string) ([]chromem.Result, error) {
+	if recordID == "" {
+		return nil, errors.New("record ID cannot be empty")
+	}
+
+	log.Debug("Retrieving by ID", "id", recordID, "collection", a.collectionName)
+	
 	// Create filter for document ID
 	where := map[string]string{
-		"id": recordID,
+		MetadataKeyID: recordID,
 	}
 	
-	// Count the total number of documents in the collection first
-	count := countDocumentsInCollection(a.collection)
+	// Try to get an estimated count to handle limit better
+	count, err := a.getEstimatedCount(ctx)
+	if err != nil {
+		log.Warn("Failed to get document count", "error", err)
+		// Continue with a safe default
+		count = 10
+	}
+	
 	if count == 0 {
 		// No documents in collection, return empty result
+		log.Debug("No documents in collection", "collection", a.collectionName)
 		return []chromem.Result{}, nil
 	}
 	
-	// Query with a dummy embedding instead of an empty query string
+	// For ID lookup, we only need one result max
+	limit := 1
+	
+	// NOTE: chromem-go v0.7.0 doesn't have a direct GetDocument method,
+	// so we'll always use query. When a newer version with direct lookup
+	// is available, this can be optimized.
+
+	// Fallback to query with a dummy embedding if direct lookup fails
+	// Query with a dummy embedding and our ID filter
+	log.Debug("Trying to find document using query", "id", recordID, "where", where)
+	
 	dummyEmbedding := []float32{0.1, 0.2, 0.3, 0.4, 0.5}
-	results, err := a.collection.QueryEmbedding(ctx, dummyEmbedding, 1, where, nil)
+	results, err := a.collection.QueryEmbedding(ctx, dummyEmbedding, limit, where, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query by ID: %w", err)
+		return nil, fmt.Errorf("failed to query by ID (%s): %w", recordID, err)
 	}
 	
 	// Log query results for debugging
@@ -219,24 +288,54 @@ func (a *ChromemGoAdapter) retrieveSemantic(ctx context.Context, query ltm.LTMQu
 		return nil, ErrMissingQueryVector
 	}
 
+	log.Debug("Performing semantic search", "collection", a.collectionName, "embedding_len", len(query.Embedding))
+
 	// Build the where clause for filtering
 	where := make(map[string]string)
 	
-	// Process filters from Filters map
+	// Process system field mappings
+	// Handle entity_id
+	if entityID, ok := query.Filters["entity_id"].(entity.EntityID); ok && entityID != "" {
+		where[MetadataKeyEntityID] = string(entityID)
+		log.Debug("Added entity filter for semantic search", "entity_id", entityID)
+	}
+	
+	// Handle user_id
+	if userID, ok := query.Filters["user_id"].(string); ok && userID != "" {
+		where[MetadataKeyUserID] = userID
+		log.Debug("Added user filter for semantic search", "user_id", userID)
+	}
+	
+	// Handle access_level
+	if accessLevel, ok := query.Filters["access_level"].(entity.AccessLevel); ok {
+		where[MetadataKeyAccessLevel] = strconv.Itoa(int(accessLevel))
+		log.Debug("Added access level filter for semantic search", "access_level", accessLevel)
+	}
+	
+	// Process other filters
 	if query.Filters != nil {
-		// Add entity filter if specified
-		if entityID, ok := query.Filters["entity_id"].(entity.EntityID); ok && entityID != "" {
-			where["entity_id"] = string(entityID)
-		}
-		
-		// Add user filter if specified
-		if userID, ok := query.Filters["user_id"].(string); ok && userID != "" {
-			where["user_id"] = userID
-		}
-		
-		// Add access level filter if specified
-		if accessLevel, ok := query.Filters["access_level"].(entity.AccessLevel); ok {
-			where["access_level"] = strconv.Itoa(int(accessLevel))
+		for k, v := range query.Filters {
+			// Skip already processed system fields
+			if k == "entity_id" || k == "user_id" || k == "access_level" {
+				continue
+			}
+			
+			// Convert value to string for the filter
+			switch val := v.(type) {
+			case string:
+				where[k] = val
+			case entity.EntityID:
+				where[k] = string(val)
+			case int:
+				where[k] = strconv.Itoa(val)
+			case bool:
+				where[k] = strconv.FormatBool(val)
+			default:
+				// For anything else, convert to string
+				where[k] = fmt.Sprintf("%v", val)
+			}
+			
+			log.Debug("Added filter for semantic search", "key", k, "value", where[k])
 		}
 	}
 
@@ -246,12 +345,44 @@ func (a *ChromemGoAdapter) retrieveSemantic(ctx context.Context, query ltm.LTMQu
 		limit = 10
 	}
 
+	// Try to get an estimated count to handle limit better
+	count, err := a.getEstimatedCount(ctx)
+	if err != nil {
+		log.Warn("Failed to get document count for semantic search", "error", err)
+		// Continue with a safe default
+		count = 10
+	}
+	
+	if count == 0 {
+		// No documents in collection, return empty result
+		log.Debug("No documents in collection for semantic search", "collection", a.collectionName)
+		return []chromem.Result{}, nil
+	}
+	
+	// Adjust limit if necessary
+	if limit > count {
+		limit = count
+	}
+
 	// Query documents
+	log.Debug("Running semantic search query", 
+		"filters", fmt.Sprintf("%v", where), 
+		"limit", limit,
+		"embedding_len", len(query.Embedding))
+		
 	results, err := a.collection.QueryEmbedding(ctx, query.Embedding, limit, where, nil)
 	if err != nil {
+		// Apply more detailed error reporting
+		if err.Error() == "nResults must be <= the number of documents in the collection" {
+			// Collection is empty
+			log.Debug("Collection is empty for semantic search")
+			return []chromem.Result{}, nil
+		}
+		
 		return nil, fmt.Errorf("failed to perform semantic search: %w", err)
 	}
 
+	log.Debug("Semantic search returned results", "count", len(results))
 	return results, nil
 }
 
@@ -260,31 +391,81 @@ func (a *ChromemGoAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQ
 	// Build the where clause for filtering
 	where := make(map[string]string)
 	
-	// Process exact match criteria
+	log.Debug("Retrieving by filters", "collection", a.collectionName)
+	
+	// Process system field mappings
+	// Handle entity_id
+	if entityID, ok := query.Filters["entity_id"].(entity.EntityID); ok && entityID != "" {
+		where[MetadataKeyEntityID] = string(entityID)
+		log.Debug("Added entity filter", "entity_id", entityID)
+	}
+	
+	// Handle user_id
+	if userID, ok := query.Filters["user_id"].(string); ok && userID != "" {
+		where[MetadataKeyUserID] = userID
+		log.Debug("Added user filter", "user_id", userID)
+	}
+	
+	// Handle access_level
+	if accessLevel, ok := query.Filters["access_level"].(entity.AccessLevel); ok {
+		where[MetadataKeyAccessLevel] = strconv.Itoa(int(accessLevel))
+		log.Debug("Added access level filter", "access_level", accessLevel)
+	}
+	
+	// Process exact match criteria (other than system fields)
 	if query.ExactMatch != nil {
 		for k, v := range query.ExactMatch {
 			if k == "id" {
 				continue // Skip ID as it's handled separately
 			}
 			
+			// Map standard field names to our metadata keys
+			key := k
+			switch k {
+			case "entity_id":
+				key = MetadataKeyEntityID
+			case "user_id":
+				key = MetadataKeyUserID
+			case "access_level":
+				key = MetadataKeyAccessLevel
+			case "created_at":
+				key = MetadataKeyCreatedAt
+			case "updated_at":
+				key = MetadataKeyUpdatedAt
+			}
+			
+			// Convert value to string for the filter
 			switch val := v.(type) {
 			case string:
-				where[k] = val
+				where[key] = val
 			case entity.EntityID:
-				where[k] = string(val)
+				where[key] = string(val)
 			case int:
-				where[k] = strconv.Itoa(val)
+				where[key] = strconv.Itoa(val)
 			case bool:
-				where[k] = strconv.FormatBool(val)
+				where[key] = strconv.FormatBool(val)
 			case entity.AccessLevel:
-				where[k] = strconv.Itoa(int(val))
+				where[key] = strconv.Itoa(int(val))
+			case time.Time:
+				where[key] = val.Format(time.RFC3339)
+			default:
+				// For anything else, convert to string
+				where[key] = fmt.Sprintf("%v", val)
 			}
+			
+			log.Debug("Added exact match filter", "key", key, "value", where[key])
 		}
 	}
 	
-	// Process general filters
+	// Process general filters (other than standard fields)
 	if query.Filters != nil {
 		for k, v := range query.Filters {
+			// Skip already processed system fields
+			if k == "entity_id" || k == "user_id" || k == "access_level" {
+				continue
+			}
+			
+			// Convert value to string for the filter
 			switch val := v.(type) {
 			case string:
 				where[k] = val
@@ -296,7 +477,14 @@ func (a *ChromemGoAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQ
 				where[k] = strconv.FormatBool(val)
 			case entity.AccessLevel:
 				where[k] = strconv.Itoa(int(val))
+			case time.Time:
+				where[k] = val.Format(time.RFC3339)
+			default:
+				// For anything else, convert to string
+				where[k] = fmt.Sprintf("%v", val)
 			}
+			
+			log.Debug("Added filter", "key", k, "value", where[k])
 		}
 	}
 
@@ -306,11 +494,17 @@ func (a *ChromemGoAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQ
 		limit = 10
 	}
 
-	// Count the total number of documents in the collection first
-	// This is a workaround for the error: "nResults must be <= the number of documents in the collection"
-	count := countDocumentsInCollection(a.collection)
+	// Try to get an estimated count to handle limit better
+	count, err := a.getEstimatedCount(ctx)
+	if err != nil {
+		log.Warn("Failed to get document count", "error", err)
+		// Continue with a safe default
+		count = 10
+	}
+	
 	if count == 0 {
 		// No documents in collection, return empty result
+		log.Debug("No documents in collection", "collection", a.collectionName)
 		return []chromem.Result{}, nil
 	}
 	
@@ -320,13 +514,18 @@ func (a *ChromemGoAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQ
 	}
 
 	var results []chromem.Result
-	var err error
+
+	// Log the query we're about to make
+	log.Debug("Running filter-based query", 
+		"filters", fmt.Sprintf("%v", where), 
+		"limit", limit,
+		"has_text", query.Text != "")
 
 	// If text search is specified, use Query with the text
 	if query.Text != "" {
 		results, err = a.collection.Query(ctx, query.Text, limit, where, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query by text: %w", err)
+			return nil, fmt.Errorf("failed to query by text (%s): %w", query.Text, err)
 		}
 	} else {
 		// Use a default dummy embedding for metadata-only search
@@ -338,72 +537,135 @@ func (a *ChromemGoAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQ
 		}
 	}
 
+	log.Debug("Filter query returned results", "count", len(results))
 	return results, nil
 }
 
-// countDocumentsInCollection is a helper function that counts the total number of documents in a collection
-func countDocumentsInCollection(collection *chromem.Collection) int {
-	// In a real implementation, you'd use the collection's API to count documents
-	// But for now, we'll make a simple query that returns all documents
-	// Since we're only using this for testing, this simplistic approach is acceptable
-	// In production, you'd want a more efficient way to count documents
-	
-	// Try to get all documents with a very large limit and no filter
-	// This is a simplistic approach just for tests
-	results, err := collection.QueryEmbedding(context.Background(), []float32{0.1, 0.2, 0.3, 0.4, 0.5}, 10000, nil, nil)
-	if err != nil {
-		// If there's an error, assume there are no documents
-		return 0
+// getEstimatedCount returns an estimated count of documents in the collection
+// This is a more reliable approach than the previous countDocumentsInCollection function
+func (a *ChromemGoAdapter) getEstimatedCount(ctx context.Context) (int, error) {
+	if a.collection == nil {
+		return 0, ErrChromemGoUnavailable
 	}
 	
-	return len(results)
+	// Try to get a small number of documents with very minimal filtering
+	// to see if any exist in the collection
+	sampleEmbedding := []float32{0.1, 0.2, 0.3, 0.4, 0.5}
+	sample, err := a.collection.QueryEmbedding(ctx, sampleEmbedding, 1, nil, nil)
+	
+	if err != nil {
+		// Check if error is due to empty collection
+		if err.Error() == "nResults must be <= the number of documents in the collection" {
+			// This error in chromem-go typically means the collection is empty
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to estimate document count: %w", err)
+	}
+	
+	// If we got at least one result, assume there are more documents (safe guess)
+	if len(sample) > 0 {
+		// For safety, we'll assume there are at least 100 documents
+		// This is just an estimate used for query limit calculations
+		return 100, nil
+	}
+	
+	// No results, assume empty collection
+	return 0, nil
 }
 
 // Update modifies an existing memory record
 func (a *ChromemGoAdapter) Update(ctx context.Context, record ltm.MemoryRecord) error {
+	if a.collection == nil {
+		return ErrChromemGoUnavailable
+	}
+
 	if record.ID == "" {
 		return errors.New("record ID cannot be empty")
 	}
 
-	// Check if the record exists
-	where := map[string]string{
-		"id": record.ID,
-	}
-	
-	// Use QueryEmbedding with a dummy embedding
-	dummyEmbedding := []float32{0.1, 0.2, 0.3, 0.4, 0.5}
-	results, err := a.collection.QueryEmbedding(ctx, dummyEmbedding, 1, where, nil)
+	log.Debug("Updating record", "id", record.ID, "collection", a.collectionName)
+
+	// First try to retrieve the record to check if it exists
+	results, err := a.retrieveByID(ctx, record.ID)
 	if err != nil {
 		return fmt.Errorf("failed to check if record exists: %w", err)
 	}
 
 	if len(results) == 0 {
+		log.Warn("Record not found for update", "id", record.ID)
 		return ErrRecordNotFound
 	}
 
-	// Delete the existing record
+	// Create filter for document ID
+	where := map[string]string{
+		MetadataKeyID: record.ID,
+	}
+
+	// Try to delete the existing record
+	log.Debug("Deleting existing record for update", "id", record.ID)
 	err = a.collection.Delete(ctx, where, nil, record.ID)
 	if err != nil {
-		return fmt.Errorf("failed to delete existing record for update: %w", err)
+		// Handle specific error cases differently
+		if err.Error() == "no match found" {
+			// Record wasn't found, log but continue (try to insert)
+			log.Warn("Record not found when trying to delete for update", "id", record.ID, "error", err)
+		} else {
+			return fmt.Errorf("failed to delete existing record for update: %w", err)
+		}
 	}
 
 	// Update the timestamp
 	record.UpdatedAt = time.Now()
 
 	// Store the updated record
+	log.Debug("Storing updated record", "id", record.ID)
 	_, err = a.Store(ctx, record)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to store updated record: %w", err)
+	}
+
+	log.Debug("Record updated successfully", "id", record.ID)
+	return nil
 }
 
 // Delete removes a memory record
 func (a *ChromemGoAdapter) Delete(ctx context.Context, id string) error {
+	if a.collection == nil {
+		return ErrChromemGoUnavailable
+	}
+
 	if id == "" {
 		return errors.New("record ID cannot be empty")
 	}
 
-	// Delete the document by ID
-	err := a.collection.Delete(ctx, nil, nil, id)
+	log.Debug("Deleting record", "id", id, "collection", a.collectionName)
+
+	// First check if the record exists
+	results, err := a.retrieveByID(ctx, id)
 	if err != nil {
+		return fmt.Errorf("failed to check if record exists: %w", err)
+	}
+
+	if len(results) == 0 {
+		// Record not found, return success (idempotent operation)
+		log.Debug("Record not found for deletion, treating as success", "id", id)
+		return nil
+	}
+
+	// Create a filter to find the document by ID
+	where := map[string]string{
+		MetadataKeyID: id,
+	}
+
+	// Delete the document by ID
+	err = a.collection.Delete(ctx, where, nil, id)
+	if err != nil {
+		// Handle specific error cases
+		if err.Error() == "no match found" {
+			// Record wasn't found, consider it a success (idempotent)
+			log.Debug("Record not found for deletion, treating as success", "id", id)
+			return nil
+		}
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
 

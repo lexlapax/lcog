@@ -130,6 +130,9 @@ type ChromemGoConfig struct {
 	
 	// Dimensions specifies the embedding dimensions
 	Dimensions int `yaml:"dimensions"`
+	
+	// StoragePath is the path for on-disk persistent storage (if empty, in-memory is used)
+	StoragePath string `yaml:"storage_path"`
 }
 
 // PgVectorConfig configures PostgreSQL with pgvector extension
