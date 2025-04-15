@@ -3,8 +3,8 @@ package mmu
 import (
 	"context"
 
-	"github.com/spurintel/cogmem-go/pkg/mem/ltm"
-	"github.com/spurintel/cogmem-go/pkg/scripting"
+	"github.com/lexlapax/cogmem/pkg/mem/ltm"
+	"github.com/lexlapax/cogmem/pkg/scripting"
 )
 
 // RetrievalOptions configures the behavior of memory retrieval.

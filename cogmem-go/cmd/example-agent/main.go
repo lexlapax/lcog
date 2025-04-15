@@ -3,23 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	// "os" - Uncomment when needed
 	"strings"
 
 	// Placeholder imports - will need to be updated once packages are implemented
-	"github.com/spurintel/cogmem-go/pkg/agent"
-	"github.com/spurintel/cogmem-go/pkg/config"
-	"github.com/spurintel/cogmem-go/pkg/entity"
+	// Commented out unused packages until they're needed
+	// "github.com/lexlapax/cogmem/pkg/agent"
+	// "github.com/lexlapax/cogmem/pkg/config"
+	"github.com/lexlapax/cogmem/pkg/entity"
 	// Add other imports as needed
 )
 
 func main() {
-	// Load configuration
+	// Load configuration - commented out until config package is used
+	/*
 	cfg, err := config.LoadFromFile("configs/config.example.yaml")
 	if err != nil {
 		fmt.Printf("Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
+	*/
 
 	// Placeholder for initializing components
 	// - ltmStore based on config.LTM.Type

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/spurintel/cogmem-go/pkg/entity"
+	"github.com/lexlapax/cogmem/pkg/entity"
 )
 
 // MemoryRecord represents a single memory entry in long-term memory.

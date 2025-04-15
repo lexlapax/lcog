@@ -3,10 +3,10 @@ package agent
 import (
 	"context"
 
-	"github.com/spurintel/cogmem-go/pkg/entity"
-	"github.com/spurintel/cogmem-go/pkg/mmu"
-	"github.com/spurintel/cogmem-go/pkg/reasoning"
-	"github.com/spurintel/cogmem-go/pkg/scripting"
+	"github.com/lexlapax/cogmem/pkg/entity"
+	"github.com/lexlapax/cogmem/pkg/mmu"
+	"github.com/lexlapax/cogmem/pkg/reasoning"
+	"github.com/lexlapax/cogmem/pkg/scripting"
 )
 
 // InputType represents the type of input received by the agent.
@@ -83,7 +83,7 @@ func NewAgent(
 // Process implements the Agent interface.
 func (a *AgentI) Process(ctx context.Context, inputType InputType, input string) (string, error) {
 	// Extract entity context - required for all operations
-	entityCtx, ok := entity.GetEntityContext(ctx)
+	_, ok := entity.GetEntityContext(ctx)
 	if !ok {
 		return "", entity.ErrMissingEntityContext
 	}

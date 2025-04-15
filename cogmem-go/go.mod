@@ -1,5 +1,12 @@
-module github.com/spurintel/cogmem-go
+module github.com/lexlapax/cogmem
 
-go 1.19
+go 1.24.1
 
-// This is just a placeholder. Run 'go mod init github.com/your-org/cogmem-go' to initialize properly
+require (
+	github.com/golang-migrate/migrate/v4 v4.18.2 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/lib/pq v1.10.9 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)

@@ -1,5 +1,13 @@
 package entity
 
+import "errors"
+
+// Common errors related to entity operations
+var (
+	ErrMissingEntityContext = errors.New("missing entity context")
+	ErrInvalidEntityID = errors.New("invalid entity ID")
+)
+
 // EntityID represents a unique identifier for an entity in the system.
 // Each entity has its own isolated memory space.
 type EntityID string

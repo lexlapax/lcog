@@ -25,38 +25,55 @@ This project is currently in Phase 1 of development, focused on establishing cor
 
 ### Prerequisites
 
-- Go 1.19+
+- Go 1.24+ (earlier versions may work but are not tested)
 - Docker and Docker Compose (for running tests with databases)
 - PostgreSQL (for SQL/KV storage option)
 - Redis (for KV storage option)
 - `sqlc` (for generating database client code)
+- `golangci-lint` (for linting)
 
 ### Installation
 
 ```bash
-git clone [repo-url]
-cd cogmem-go
+git clone https://github.com/lexlapax/cogmem.git
+cd cogmem/cogmem-go
 go mod download
+make deps  # Install dependencies
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-go test ./...
+# Run all unit tests
+make test
 
-# Run specific package tests
-go test -v ./pkg/specific/package
+# Run tests with verbose output
+make test-verbose
 
-# Run integration tests
-go test ./test/integration/...
+# Run integration tests (requires database)
+make test-integration
+
+# Run benchmarks
+make bench
 ```
 
-### Example Usage
+### Building and Running
 
 ```bash
+# Build all packages
+make build
+
 # Run the example agent
-go run cmd/example-agent/main.go
+make run
+
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Generate SQL client code
+make sqlc-gen
 ```
 
 ## Project Structure

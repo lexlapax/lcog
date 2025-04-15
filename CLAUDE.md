@@ -4,14 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build, Lint, and Test Commands
 
-- Go: `go test ./...` - Run all tests
-- Go: `go test -v ./pkg/specific/package` - Run tests in specific package
-- Go: `go test ./test/integration/...` - Run integration tests
-- Go: `go run cmd/example-agent/main.go` - Run the example agent
-- Go: `go fmt ./...` - Format code
-- Go: `sqlc generate` - Generate SQL client code for adapters
-- Go: `golangci-lint run` - Run linter
-- Go: `go build ./...` - Build all packages
+### Makefile Commands
+- `make build` - Build all packages
+- `make test` - Run unit tests
+- `make test-verbose` - Run tests with verbose output
+- `make test-integration` - Run integration tests (requires database)
+- `make bench` - Run benchmarks
+- `make run` - Run the example agent
+- `make fmt` - Format code
+- `make lint` - Run linter
+- `make sqlc-gen` - Generate SQL client code for adapters
+- `make deps` - Install dependencies
+- `make dev-db-up` - Start development databases
+- `make dev-db-down` - Stop development databases
+
+### Direct Go Commands (Alternative)
+- `go test ./pkg/...` - Run all unit tests
+- `go test -v ./pkg/specific/package` - Run tests in specific package
+- `INTEGRATION_TESTS=true go test ./test/integration/...` - Run integration tests
+- `go run cmd/example-agent/main.go` - Run the example agent
+- `go fmt ./...` - Format code
+- `sqlc generate` - Generate SQL client code for adapters
+- `golangci-lint run` - Run linter
+- `go build ./...` - Build all packages
 
 ## Code Style Guidelines
 

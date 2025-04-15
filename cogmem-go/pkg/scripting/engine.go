@@ -2,8 +2,6 @@ package scripting
 
 import (
 	"context"
-	"io/ioutil"
-	"path/filepath"
 )
 
 // Engine is the interface for the Lua scripting engine.
