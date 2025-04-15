@@ -1,7 +1,3 @@
-Okay, here is the detailed, step-by-step implementation plan for Phase 2, following the Test-First Development (TFD) approach and building upon the completion of Phase 1.
-
----
-
 # CogMem Golang Library: Phase 2 Implementation Plan (Test-First)
 
 **Version:** 1.0 (Phase 2 Detail Plan)
@@ -27,13 +23,13 @@ For each significant piece of functionality within this phase:
 ### Step 1: Testing Infrastructure for Vector LTM (`test/`)
 
 *   **1.1. Add Chromem-go Dependency:**
-    *   Add `chromem-go` (`go get github.com/google/chromem-go`)
+    *   Add `chromem-go` (`go get github.com/philippgille/chromem-go`)
 *   **1.2. Setup Docker Compose for Testing:**
-    *   Create/Update `test/docker-compose.test.yml` to include a `chromem-go` service.
+    *   Create/Update `test/docker-compose.test.yml` to include a `chromem-go` service - not required, use embedded chromem-go for testing.
     *   *Note:* If `chromem-go` offers a reliable in-memory mode suitable for testing, that can be used as an alternative or addition to Docker.
 *   **1.3. Enhance Test Helpers (`test/testutil/`):**
-    *   **1.3.1. Implement:** Create helper functions (`test/testutil/chromadb.go`) to:
-        *   Start/stop the Chromem-go container defined in `docker-compose.test.yml` (using libraries like `testcontainers-go` or custom shell scripts executed from Go tests).
+    *   **1.3.1. Implement:** Create helper functions (`test/testutil/chromem.go`) to:
+        *   Start/stop the Chromem-go container defined in `docker-compose.test.yml` (using libraries like `testcontainers-go` or custom shell scripts executed from Go tests). - not required
         *   Provide a function `CreateTempChromemGoClient() (*chromemgo.Client, cleanupFunc func())` that connects to the test instance and provides a cleanup function (potentially including clearing test collections).
     *   **1.3.2. Test:** Add a simple test within `test/testutil/` to verify the helper can connect to a running Chromem-go instance.
 

@@ -8,6 +8,8 @@ require (
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.27
+	github.com/peterh/liner v1.2.2
+	github.com/philippgille/chromem-go v0.7.0
 	github.com/stretchr/testify v1.10.0
 	github.com/yuin/gopher-lua v1.1.1
 	go.etcd.io/bbolt v1.4.0
@@ -22,7 +24,6 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/mattn/go-runewidth v0.0.3 // indirect
-	github.com/peterh/liner v1.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	go.uber.org/atomic v1.7.0 // indirect

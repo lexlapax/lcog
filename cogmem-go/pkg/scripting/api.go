@@ -75,7 +75,9 @@ func apiUUID(L *lua.LState) int {
 	// This is a placeholder implementation
 	// In a real implementation, you'd use a proper UUID package
 	// such as github.com/google/uuid
-	uuid := fmt.Sprintf("uuid-%d", time.Now().UnixNano())
+	
+	// Use more randomness to ensure UUIDs are unique even when called in rapid succession
+	uuid := fmt.Sprintf("uuid-%d-%d", time.Now().UnixNano(), time.Now().Add(time.Nanosecond).UnixNano())
 	L.Push(lua.LString(uuid))
 	return 1
 }
