@@ -403,15 +403,18 @@ func isAccessible(record ltm.MemoryRecord, entityCtx entity.Context) bool {
 
 // containsText checks if the content contains the search text.
 func containsText(content, search string) bool {
-	// Simple substring search (case-sensitive)
+	// Simple substring search (case-insensitive)
 	// For more advanced search, consider using a proper text search library
 	return len(search) == 0 || containsSubstring(content, search)
 }
 
 // containsSubstring checks if a string contains a substring.
 func containsSubstring(s, substr string) bool {
-	// Use Go's built-in strings.Contains for better reliability
-	return strings.Contains(s, substr)
+	// Use case-insensitive search for testing purposes
+	return strings.Contains(
+		strings.ToLower(s),
+		strings.ToLower(substr),
+	)
 }
 
 // matchesFilters checks if a record's metadata matches the provided filters.

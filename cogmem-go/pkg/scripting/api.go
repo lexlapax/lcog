@@ -31,6 +31,9 @@ func registerAPIFunctions(L *lua.LState) {
 	
 	// Register the cogmem table in the global namespace
 	L.SetGlobal("cogmem", cogmem)
+	
+	// Register dostring function for testing purposes
+	L.SetGlobal("dostring", L.NewFunction(apiDoString))
 }
 
 // apiLog is a function to log messages from Lua
@@ -105,5 +108,23 @@ func apiJSONDecode(L *lua.LState) int {
 	table.RawSetString("original", lua.LString(jsonStr))
 	
 	L.Push(table)
+	return 1
+}
+
+// apiDoString executes a Lua code string, primarily for testing purposes
+func apiDoString(L *lua.LState) int {
+	code := L.CheckString(1)
+	
+	log.Debug("Executing Lua code via dostring", "code_length", len(code))
+	
+	err := L.DoString(code)
+	if err != nil {
+		log.Error("Error in dostring execution", "error", err)
+		L.Push(lua.LBool(false))  // Return false to indicate failure
+		L.Push(lua.LString(err.Error()))
+		return 2
+	}
+	
+	L.Push(lua.LBool(true))  // Return true to indicate success
 	return 1
 }

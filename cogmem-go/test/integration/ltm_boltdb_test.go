@@ -82,7 +82,7 @@ func TestBoltDBLTMOperations(t *testing.T) {
 		// Verify retrieved record
 		retrieved := results[0]
 		assert.Equal(t, id, retrieved.ID)
-		assert.Equal(t, "entity1", retrieved.EntityID)
+		assert.Equal(t, entity.EntityID("entity1"), retrieved.EntityID)
 		assert.Equal(t, "user1", retrieved.UserID)
 		assert.Equal(t, entity.SharedWithinEntity, retrieved.AccessLevel)
 		assert.Equal(t, "Test content for entity1", retrieved.Content)

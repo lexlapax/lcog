@@ -222,7 +222,15 @@ func (m *MMUI) EncodeToLTM(ctx context.Context, dataToStore interface{}) (string
 	
 	// Apply before_encode Lua hook if enabled
 	if m.config.EnableLuaHooks && m.scriptEngine != nil {
-		m.scriptEngine.ExecuteFunction(ctx, beforeEncodeFuncName, record.Content)
+		// Call the hook and potentially modify the content
+		result, err := m.scriptEngine.ExecuteFunction(ctx, beforeEncodeFuncName, record.Content)
+		if err == nil && result != nil {
+			// If the hook returns a string, use it as the modified content
+			if modifiedContent, ok := result.(string); ok {
+				record.Content = modifiedContent
+				log.Debug("Content modified by before_encode Lua hook")
+			}
+		}
 	}
 
 	// Store the record in LTM
