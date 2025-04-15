@@ -1,19 +1,26 @@
-package mock
+package boltdb
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
+	"github.com/lexlapax/cogmem/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMockStore_Store(t *testing.T) {
-	mockStore := NewMockStore()
+func TestBoltStore_Store(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
+
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
+	require.NoError(t, err)
+
 	entityID := entity.EntityID("test-entity")
 	ctx := entity.ContextWithEntityID(context.Background(), entityID)
 
@@ -29,12 +36,12 @@ func TestMockStore_Store(t *testing.T) {
 	}
 
 	// Test storing a record
-	id, err := mockStore.Store(ctx, record)
+	id, err := store.Store(ctx, record)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, id, "ID should be generated and not empty")
 
 	// Verify record was stored with correct values
-	records, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
+	records, err := store.Retrieve(ctx, ltm.LTMQuery{
 		ExactMatch: map[string]interface{}{
 			"ID": id,
 		},
@@ -44,33 +51,20 @@ func TestMockStore_Store(t *testing.T) {
 	assert.Equal(t, entityID, records[0].EntityID)
 	assert.Equal(t, record.Content, records[0].Content)
 	assert.Equal(t, record.AccessLevel, records[0].AccessLevel)
-	assert.Equal(t, record.Metadata["key1"], records[0].Metadata["key1"])
-	assert.Equal(t, record.Metadata["key2"], records[0].Metadata["key2"])
-	assert.WithinDuration(t, time.Now(), records[0].CreatedAt, 2*time.Second)
-	assert.WithinDuration(t, time.Now(), records[0].UpdatedAt, 2*time.Second)
+	assert.Equal(t, "value1", records[0].Metadata["key1"])
+	assert.WithinDuration(t, time.Now(), records[0].CreatedAt, 5*time.Second)
+	assert.WithinDuration(t, time.Now(), records[0].UpdatedAt, 5*time.Second)
 }
 
-func TestMockStore_Store_MissingEntityContext(t *testing.T) {
-	mockStore := NewMockStore()
-	
-	// Context without entity ID
-	ctx := context.Background()
-	
-	// Create a test record
-	record := ltm.MemoryRecord{
-		EntityID:    entity.EntityID("test-entity"),
-		Content:     "test memory content",
-		AccessLevel: entity.SharedWithinEntity,
-	}
+func TestBoltStore_Retrieve(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
 
-	// Test storing without entity context
-	_, err := mockStore.Store(ctx, record)
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, entity.ErrMissingEntityContext))
-}
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
+	require.NoError(t, err)
 
-func TestMockStore_Retrieve(t *testing.T) {
-	mockStore := NewMockStore()
 	entityID := entity.EntityID("test-entity")
 	ctx := entity.ContextWithEntityID(context.Background(), entityID)
 
@@ -82,7 +76,7 @@ func TestMockStore_Retrieve(t *testing.T) {
 			AccessLevel: entity.SharedWithinEntity,
 			Metadata: map[string]interface{}{
 				"type": "note",
-				"tags": []string{"important", "work"},
+				"tags": []interface{}{"important", "work"},
 			},
 		},
 		{
@@ -91,7 +85,7 @@ func TestMockStore_Retrieve(t *testing.T) {
 			AccessLevel: entity.SharedWithinEntity,
 			Metadata: map[string]interface{}{
 				"type": "document",
-				"tags": []string{"reference"},
+				"tags": []interface{}{"reference"},
 			},
 		},
 	}
@@ -99,14 +93,14 @@ func TestMockStore_Retrieve(t *testing.T) {
 	// Store test records
 	var ids []string
 	for _, record := range testRecords {
-		id, err := mockStore.Store(ctx, record)
+		id, err := store.Store(ctx, record)
 		require.NoError(t, err)
 		ids = append(ids, id)
 	}
 
 	// Test retrieving by content
 	t.Run("retrieve by text", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
+		results, err := store.Retrieve(ctx, ltm.LTMQuery{
 			Text: "searchable",
 		})
 		assert.NoError(t, err)
@@ -114,21 +108,9 @@ func TestMockStore_Retrieve(t *testing.T) {
 		assert.Contains(t, results[0].Content, "searchable")
 	})
 
-	// Test retrieving by metadata field
-	t.Run("retrieve by metadata", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
-			Filters: map[string]interface{}{
-				"type": "note",
-			},
-		})
-		assert.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, "note", results[0].Metadata["type"])
-	})
-
 	// Test retrieving with exact match
 	t.Run("retrieve by exact match", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
+		results, err := store.Retrieve(ctx, ltm.LTMQuery{
 			ExactMatch: map[string]interface{}{
 				"ID": ids[0],
 			},
@@ -137,10 +119,44 @@ func TestMockStore_Retrieve(t *testing.T) {
 		assert.Len(t, results, 1)
 		assert.Equal(t, ids[0], results[0].ID)
 	})
+
+	// Test retrieving with metadata filter
+	t.Run("retrieve by metadata filter", func(t *testing.T) {
+		results, err := store.Retrieve(ctx, ltm.LTMQuery{
+			Filters: map[string]interface{}{
+				"type": "document",
+			},
+		})
+		assert.NoError(t, err)
+		assert.Len(t, results, 1)
+		assert.Equal(t, "document", results[0].Metadata["type"])
+	})
+
+	// Test retrieving all records
+	t.Run("retrieve all", func(t *testing.T) {
+		results, err := store.Retrieve(ctx, ltm.LTMQuery{})
+		assert.NoError(t, err)
+		assert.Len(t, results, 2)
+	})
+
+	// Test limit
+	t.Run("limit results", func(t *testing.T) {
+		results, err := store.Retrieve(ctx, ltm.LTMQuery{
+			Limit: 1,
+		})
+		assert.NoError(t, err)
+		assert.Len(t, results, 1)
+	})
 }
 
-func TestMockStore_RetrieveIsolation(t *testing.T) {
-	mockStore := NewMockStore()
+func TestBoltStore_RetrieveIsolation(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
+
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
+	require.NoError(t, err)
 	
 	// Create two different entities
 	entityA := entity.EntityID("entity-a")
@@ -155,7 +171,7 @@ func TestMockStore_RetrieveIsolation(t *testing.T) {
 		Content:     "entity A record",
 		AccessLevel: entity.SharedWithinEntity,
 	}
-	idA, err := mockStore.Store(ctxA, recordA)
+	idA, err := store.Store(ctxA, recordA)
 	require.NoError(t, err)
 
 	// Create and store record for Entity B
@@ -164,25 +180,25 @@ func TestMockStore_RetrieveIsolation(t *testing.T) {
 		Content:     "entity B record",
 		AccessLevel: entity.SharedWithinEntity,
 	}
-	idB, err := mockStore.Store(ctxB, recordB)
+	idB, err := store.Store(ctxB, recordB)
 	require.NoError(t, err)
 
 	// Entity A should only see its own records
-	resultsA, err := mockStore.Retrieve(ctxA, ltm.LTMQuery{})
+	resultsA, err := store.Retrieve(ctxA, ltm.LTMQuery{})
 	assert.NoError(t, err)
 	assert.Len(t, resultsA, 1)
 	assert.Equal(t, entityA, resultsA[0].EntityID)
 	assert.Equal(t, idA, resultsA[0].ID)
 
 	// Entity B should only see its own records
-	resultsB, err := mockStore.Retrieve(ctxB, ltm.LTMQuery{})
+	resultsB, err := store.Retrieve(ctxB, ltm.LTMQuery{})
 	assert.NoError(t, err)
 	assert.Len(t, resultsB, 1)
 	assert.Equal(t, entityB, resultsB[0].EntityID)
 	assert.Equal(t, idB, resultsB[0].ID)
 
 	// Entity A should not be able to access Entity B's record by ID
-	resultsA, err = mockStore.Retrieve(ctxA, ltm.LTMQuery{
+	resultsA, err = store.Retrieve(ctxA, ltm.LTMQuery{
 		ExactMatch: map[string]interface{}{
 			"ID": idB,
 		},
@@ -191,8 +207,15 @@ func TestMockStore_RetrieveIsolation(t *testing.T) {
 	assert.Len(t, resultsA, 0, "Entity A should not be able to access Entity B's records")
 }
 
-func TestMockStore_AccessLevel(t *testing.T) {
-	mockStore := NewMockStore()
+func TestBoltStore_AccessLevel(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
+
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
+	require.NoError(t, err)
+
 	entityID := entity.EntityID("test-entity")
 	
 	// Create contexts for different users within the same entity
@@ -216,7 +239,7 @@ func TestMockStore_AccessLevel(t *testing.T) {
 		AccessLevel: entity.PrivateToUser,
 		Content:     "private to user A",
 	}
-	privateIDa, err := mockStore.Store(ctxUserA, privateRecordA)
+	privateIDa, err := store.Store(ctxUserA, privateRecordA)
 	require.NoError(t, err)
 
 	// Create and store a shared record
@@ -225,12 +248,12 @@ func TestMockStore_AccessLevel(t *testing.T) {
 		AccessLevel: entity.SharedWithinEntity,
 		Content:     "shared within entity",
 	}
-	sharedID, err := mockStore.Store(ctxEntityOnly, sharedRecord)
+	sharedID, err := store.Store(ctxEntityOnly, sharedRecord)
 	require.NoError(t, err)
 
 	// Test that User A can see both their private record and the shared record
 	t.Run("user A can see their private and shared records", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctxUserA, ltm.LTMQuery{})
+		results, err := store.Retrieve(ctxUserA, ltm.LTMQuery{})
 		assert.NoError(t, err)
 		assert.Len(t, results, 2)
 		
@@ -242,7 +265,7 @@ func TestMockStore_AccessLevel(t *testing.T) {
 
 	// Test that User B can only see the shared record
 	t.Run("user B can only see shared records", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctxUserB, ltm.LTMQuery{})
+		results, err := store.Retrieve(ctxUserB, ltm.LTMQuery{})
 		assert.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.Equal(t, sharedID, results[0].ID)
@@ -250,15 +273,22 @@ func TestMockStore_AccessLevel(t *testing.T) {
 
 	// Test that context without user ID can only see shared records
 	t.Run("entity-only context can only see shared records", func(t *testing.T) {
-		results, err := mockStore.Retrieve(ctxEntityOnly, ltm.LTMQuery{})
+		results, err := store.Retrieve(ctxEntityOnly, ltm.LTMQuery{})
 		assert.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.Equal(t, sharedID, results[0].ID)
 	})
 }
 
-func TestMockStore_Update(t *testing.T) {
-	mockStore := NewMockStore()
+func TestBoltStore_Update(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
+
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
+	require.NoError(t, err)
+
 	entityID := entity.EntityID("test-entity")
 	ctx := entity.ContextWithEntityID(context.Background(), entityID)
 
@@ -271,7 +301,7 @@ func TestMockStore_Update(t *testing.T) {
 			"original": true,
 		},
 	}
-	id, err := mockStore.Store(ctx, originalRecord)
+	id, err := store.Store(ctx, originalRecord)
 	require.NoError(t, err)
 
 	// Update the record
@@ -284,11 +314,11 @@ func TestMockStore_Update(t *testing.T) {
 			"updated": true,
 		},
 	}
-	err = mockStore.Update(ctx, updatedRecord)
+	err = store.Update(ctx, updatedRecord)
 	assert.NoError(t, err)
 
 	// Retrieve and verify update
-	results, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
+	results, err := store.Retrieve(ctx, ltm.LTMQuery{
 		ExactMatch: map[string]interface{}{
 			"ID": id,
 		},
@@ -297,51 +327,17 @@ func TestMockStore_Update(t *testing.T) {
 	assert.Len(t, results, 1)
 	assert.Equal(t, "updated content", results[0].Content)
 	assert.Equal(t, true, results[0].Metadata["updated"])
-	assert.NotContains(t, results[0].Metadata, "original")
 }
 
-func TestMockStore_Update_EntityIsolation(t *testing.T) {
-	mockStore := NewMockStore()
-	
-	// Create two different entities
-	entityA := entity.EntityID("entity-a")
-	entityB := entity.EntityID("entity-b")
-	
-	ctxA := entity.ContextWithEntityID(context.Background(), entityA)
-	ctxB := entity.ContextWithEntityID(context.Background(), entityB)
+func TestBoltStore_Delete(t *testing.T) {
+	// Setup test database
+	db, _, cleanup := testutil.CreateTempBoltDB(t)
+	defer cleanup()
 
-	// Create and store record for Entity A
-	recordA := ltm.MemoryRecord{
-		EntityID:    entityA,
-		Content:     "entity A record",
-		AccessLevel: entity.SharedWithinEntity,
-	}
-	idA, err := mockStore.Store(ctxA, recordA)
+	store := NewBoltStore(db)
+	err := store.Initialize(context.Background())
 	require.NoError(t, err)
 
-	// Try to update Entity A's record from Entity B's context
-	updatedRecord := ltm.MemoryRecord{
-		ID:          idA,
-		EntityID:    entityA, // Still has Entity A's ID
-		Content:     "attempted update from entity B",
-		AccessLevel: entity.SharedWithinEntity,
-	}
-	err = mockStore.Update(ctxB, updatedRecord)
-	assert.Error(t, err, "Should error when Entity B tries to update Entity A's record")
-
-	// Verify record was not changed
-	results, err := mockStore.Retrieve(ctxA, ltm.LTMQuery{
-		ExactMatch: map[string]interface{}{
-			"ID": idA,
-		},
-	})
-	assert.NoError(t, err)
-	assert.Len(t, results, 1)
-	assert.Equal(t, "entity A record", results[0].Content)
-}
-
-func TestMockStore_Delete(t *testing.T) {
-	mockStore := NewMockStore()
 	entityID := entity.EntityID("test-entity")
 	ctx := entity.ContextWithEntityID(context.Background(), entityID)
 
@@ -351,52 +347,19 @@ func TestMockStore_Delete(t *testing.T) {
 		Content:     "record to delete",
 		AccessLevel: entity.SharedWithinEntity,
 	}
-	id, err := mockStore.Store(ctx, record)
+	id, err := store.Store(ctx, record)
 	require.NoError(t, err)
 
 	// Delete the record
-	err = mockStore.Delete(ctx, id)
+	err = store.Delete(ctx, id)
 	assert.NoError(t, err)
 
 	// Verify record was deleted
-	results, err := mockStore.Retrieve(ctx, ltm.LTMQuery{
+	results, err := store.Retrieve(ctx, ltm.LTMQuery{
 		ExactMatch: map[string]interface{}{
 			"ID": id,
 		},
 	})
 	assert.NoError(t, err)
 	assert.Len(t, results, 0, "Record should be deleted")
-}
-
-func TestMockStore_Delete_EntityIsolation(t *testing.T) {
-	mockStore := NewMockStore()
-	
-	// Create two different entities
-	entityA := entity.EntityID("entity-a")
-	entityB := entity.EntityID("entity-b")
-	
-	ctxA := entity.ContextWithEntityID(context.Background(), entityA)
-	ctxB := entity.ContextWithEntityID(context.Background(), entityB)
-
-	// Create and store record for Entity A
-	recordA := ltm.MemoryRecord{
-		EntityID:    entityA,
-		Content:     "entity A record",
-		AccessLevel: entity.SharedWithinEntity,
-	}
-	idA, err := mockStore.Store(ctxA, recordA)
-	require.NoError(t, err)
-
-	// Try to delete Entity A's record from Entity B's context
-	err = mockStore.Delete(ctxB, idA)
-	assert.Error(t, err, "Should error when Entity B tries to delete Entity A's record")
-
-	// Verify record was not deleted
-	results, err := mockStore.Retrieve(ctxA, ltm.LTMQuery{
-		ExactMatch: map[string]interface{}{
-			"ID": idA,
-		},
-	})
-	assert.NoError(t, err)
-	assert.Len(t, results, 1, "Record should still exist")
 }

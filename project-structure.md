@@ -96,23 +96,27 @@ This is the heart of the library, containing code intended for public consumptio
                 *   `mock.go`: In-memory mock implementation for testing.
             *   **`sqlstore/`**:
                 *   `sqlstore.go`: (Optional) Common SQL DB `sqlc` logic or sub-interfaces.
+                *   `sqlite/sqlite3.go`: sqlc/sqlite3 adapter implementing `LTMStore`. 1st implementation
                 *   `postgres/postgres.go`: sqlc/pgx adapter implementing `LTMStore`.
-                *   `sqlite/sqlite3.go`: sqlc/sqlite3 adapter implementing `LTMStore`.
                 *   `postgres/postgres_test.go`: Tests for postgres adapter (likely integration tests requiring a postgres instance instance).
             *   **`vector/`**:
                 *   `vector.go`: (Optional) Common vector DB logic or sub-interfaces.
+                *   `milvus/milvus.go`: Milvus adapter implementing `LTMStore`. 1st implementation
                 *   `postgres/postgres_pgvector.go`: postgres `pgvector` adapter implementing `LTMStore`.
                 *   `weaviate/weaviate.go`: Weaviate adapter implementing `LTMStore`.
-                *   `milvus/milvus.go`: Milvus adapter implementing `LTMStore`.
                 *   `postgres/postgres_pgvector.go`: Tests for pgvector adapter (likely integration tests requiring a postgres instance).
             *   **`graph/`**:
+                *   `graph.go`: (optional) common graph db logic 
                 *   `postgres/postgres_apacheage.go`: Adapter for interacting `apache_age`graph extension in postges.
                 *   `neo4j/neo4j.go`: Adapter for interacting with a neo4j server instance.
                 *   `dgraph/dgraph.go`: Dgraph adapter.
                 *   `postgres/postgres_apacheage_test.go`: Tests for interacting `apache_age` postgres instance
             *   **`kv/`**:
+                *   `kvstore.go`: (optional) common kvstore db logic 
+                *   `boltdb/boltdb.go`: boltdb kv store leveraging extension. 1st implementation
                 *   `postgres/postgres_hstore.go`: postgres kv store leveraging `hstore` extension.
                 *   `redis/redis.go`: Redis adapter.
+                *   `boltdb/boltdb_test.go`: Tests for interacting with boltdb
                 *   `postgres/postgres_hstore_test.go`: Tests for interacting with `hstore` postgres
     *   **`wm/`**
         *   `manager.go`: Defines `WorkingMemoryManager` interface (if used) or helper functions for managing context size / formatting.
