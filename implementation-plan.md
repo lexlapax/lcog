@@ -11,7 +11,7 @@
 This document outlines a detailed 3-phase implementation plan for the CogMem Golang Library, designed to align with the `project-structure.md` (v1.0 rev 2). The plan adopts a **Test-First Development (TFD)** approach and explicitly builds towards the architectural goal of supporting **hybrid Long-Term Memory (LTM)** configurations, where an agent can leverage multiple storage backends (e.g., SQL, KV, Vector, Graph) simultaneously.
 
 *   **Phase 1:** Focuses on establishing the foundational library structure, core interfaces, testing infrastructure, implementing basic **single-instance** LTM capabilities using **SQLite** and **BoltDB**, integrating Lua scripting, and ensuring robust multi-entity context handling. This lays the groundwork for individual storage types.
-*   **Phase 2:** Centers on adding **Vector LTM** capabilities (initially **Milvus**) for Retrieval-Augmented Generation (RAG), implementing embedding generation, and introducing the basic reflection module. The MMU will learn to handle vector-specific operations, still likely operating primarily against one *type* of backend at a time or with very basic routing.
+*   **Phase 2:** Centers on adding **Vector LTM** capabilities (initially **Chromem-go**) for Retrieval-Augmented Generation (RAG), implementing embedding generation, and introducing the basic reflection module. The MMU will learn to handle vector-specific operations, still likely operating primarily against one *type* of backend at a time or with very basic routing.
 *   **Phase 3:** Concentrates on adding **Graph LTM** capabilities (prioritizing **Postgres/Apache Age**), **implementing the core MMU orchestration logic** to manage and query *multiple configured LTM backends concurrently* for true hybrid storage, enabling multi-agent collaboration via shared memory, maturing the reflection loop, and finalizing documentation.
 
 ## 2. Overall Approach: Test-First Development (TFD)
@@ -95,20 +95,20 @@ For each significant piece of functionality:
 
 ---
 
-## 4. Phase 2: Vector LTM (Milvus) Capability & Basic Reflection
+## 4. Phase 2: Vector LTM (Chromem-go) Capability & Basic Reflection
 
-**Goal:** Add the *capability* to use **Milvus** as a Vector LTM backend, implement necessary MMU enhancements for handling embeddings and semantic search *when Milvus is configured*, introduce the basic reflection module, and implement a real Reasoning Engine adapter for embeddings.
+**Goal:** Add the *capability* to use **chromem-go** as a Vector LTM backend, implement necessary MMU enhancements for handling embeddings and semantic search *when chromem-go is configured*, introduce the basic reflection module, and implement a real Reasoning Engine adapter for embeddings.
 
 **Detailed Steps:**
 
 1.  **Testing Infrastructure:**
-    *   **Setup Milvus:** Add Milvus service to `test/docker-compose.test.yml`.
-    *   **Update Helpers:** Enhance `test/testutil/` to manage the Milvus container for integration tests.
+    *   **Setup Chromem-go:** Add `chromem-go` to vector store .
+    *   **Update Helpers:** Enhance `test/testutil/` to manage the Chromem-go container for integration tests.
 
-2.  **Milvus Vector LTM Adapter Capability (`pkg/mem/ltm/adapters/vector/milvus/`):**
+2.  **Chromem-go Vector LTM Adapter Capability (`pkg/mem/ltm/adapters/vector/chromem_go/`):**
     *   **Implement (TDD):**
-        *   Write integration tests (`milvus_test.go`) verifying `LTMStore` compliance for Milvus. Test storing records with embeddings, semantic retrieval, `EntityID` filtering (via partitions/expressions), and metadata filtering.
-        *   Implement the Milvus adapter (`milvus.go`) using the Milvus Go SDK, passing integration tests.
+        *   Write integration tests (`chromem_go/chromem_go_test.go`) verifying `LTMStore` compliance for chromem-go. Test storing records with embeddings, semantic retrieval, `EntityID` filtering (via partitions/expressions), and metadata filtering.
+        *   Implement the Chromem-go adapter (`chromem_go/chromem_go.go`) using the chromem-go Go SDK, passing integration tests.
 
 3.  **MMU Enhancements (Vector Handling):**
     *   **Implement (TDD):**
@@ -127,35 +127,35 @@ For each significant piece of functionality:
     *   **Implement (TDD):** Update `Agent` tests and implementation to integrate RAG results (when semantic retrieval is used) into the reasoning context and add basic reflection module triggering.
 
 7.  **Examples & Configuration:**
-    *   **Update Example:** Enhance `cmd/example-agent` to demonstrate RAG workflow *when configured to use Milvus*.
-    *   **Update Config:** Add Milvus connection parameters to `configs/config.example.yaml` and the option to select `"milvus"` as the `LTM.Type`. Add basic reflection config options.
+    *   **Update Example:** Enhance `cmd/example-agent` to demonstrate RAG workflow *when configured to use Chromem-go*.
+    *   **Update Config:** Add Chromem-go connection parameters to `configs/config.example.yaml` and the option to select `"Chromem-go"` as the `LTM.Type`. Add basic reflection config options.
 
 8.  **(Optional Stretch) Other Vector Adapters:** Implement adapters for Postgres/pgvector or Weaviate if time allows, following TDD.
 
 9.  **Phase 2 Review & Refactor:**
-    *   Conduct code reviews, check test coverage (especially Milvus and MMU vector logic). Refactor. Ensure CI passes.
-    *   Update documentation explaining how to configure and use Milvus for vector storage/RAG, and the basic reflection mechanism. Reiterate that only one LTM backend is active at runtime in this phase.
+    *   Conduct code reviews, check test coverage (especially Chromem-go and MMU vector logic). Refactor. Ensure CI passes.
+    *   Update documentation explaining how to configure and use Chromem-go for vector storage/RAG, and the basic reflection mechanism. Reiterate that only one LTM backend is active at runtime in this phase.
 
-**Testing Focus (Phase 2):** Integration tests for the **Milvus** adapter. Unit/Integration tests for MMU's handling of embeddings and semantic retrieval strategy. Unit tests for the reflection module's core flow.
+**Testing Focus (Phase 2):** Integration tests for the **Chromem-go** adapter. Unit/Integration tests for MMU's handling of embeddings and semantic retrieval strategy. Unit tests for the reflection module's core flow.
 
-**Outcome / Deliverable (Phase 2):** The library now has the *capability* to use **Milvus** for vector storage and semantic search (RAG) when configured. A basic reflection mechanism is implemented. The MMU understands vector operations but likely still interacts with only the single configured LTM backend.
+**Outcome / Deliverable (Phase 2):** The library now has the *capability* to use **Chromem-go** for vector storage and semantic search (RAG) when configured. A basic reflection mechanism is implemented. The MMU understands vector operations but likely still interacts with only the single configured LTM backend.
 
 ---
 
 ## 5. Phase 3: Graph LTM Capability, Hybrid Orchestration & Collaboration
 
-**Goal:** Add the *capability* to use **Graph LTM** backends (prioritizing **Postgres/Apache Age**), **implement the core MMU orchestration logic** enabling true **hybrid LTM** operation (using multiple backends concurrently), enable multi-agent collaboration via shared memory with concurrency control, mature the reflection loop, and finalize documentation.
+**Goal:** Add the *capability* to use **Graph LTM** backends (prioritizing **cayley**), **implement the core MMU orchestration logic** enabling true **hybrid LTM** operation (using multiple backends concurrently), enable multi-agent collaboration via shared memory with concurrency control, mature the reflection loop, and finalize documentation.
 
 **Detailed Steps:**
 
 1.  **Testing Infrastructure:**
-    *   **Setup Graph DBs:** Add services for required graph databases (e.g., Postgres+Age, Neo4j) to `test/docker-compose.test.yml`.
+    *   **Setup Graph DBs:** Add services for required graph databases (e.g., cayley Postgres+Age, Neo4j) 
     *   **Update Helpers:** Enhance `test/testutil/` for graph database management.
 
 2.  **Graph LTM Adapter Capability (`pkg/mem/ltm/adapters/graph/`):**
-    *   **Implement (TDD - Prioritize Postgres/Apache Age):**
+    *   **Implement (TDD - Prioritize cayley):**
         *   Write integration tests verifying `LTMStore` compliance for graph databases. Test node/relationship storage, graph traversal retrieval, `EntityID` scoping, and potentially temporal queries.
-        *   Implement the graph adapter(s) (`postgres/postgres_apacheage.go`, etc.).
+        *   Implement the graph adapter(s) (`cayley/cayley.go`, etc.).
 
 3.  **MMU Hybrid LTM Orchestration:**
     *   **Design:** Define strategies within the MMU for handling *multiple, concurrently configured* LTM backends:

@@ -101,16 +101,20 @@ This is the heart of the library, containing code intended for public consumptio
                 *   `postgres/postgres_test.go`: Tests for postgres adapter (likely integration tests requiring a postgres instance instance).
             *   **`vector/`**:
                 *   `vector.go`: (Optional) Common vector DB logic or sub-interfaces.
-                *   `milvus/milvus.go`: Milvus adapter implementing `LTMStore`. 1st implementation
+                *   `chromem_go/chromem_go.go`: `chromem-go` adapter implementing `LTMStore`. 1st implementation
+                *   `chromem_go/chromem_go_test.go`: test for `chromem-go` adapter implementing `LTMStore`. 
+                *   `milvus/milvus.go`: Milvus adapter implementing `LTMStore`. 
                 *   `postgres/postgres_pgvector.go`: postgres `pgvector` adapter implementing `LTMStore`.
                 *   `weaviate/weaviate.go`: Weaviate adapter implementing `LTMStore`.
                 *   `postgres/postgres_pgvector.go`: Tests for pgvector adapter (likely integration tests requiring a postgres instance).
             *   **`graph/`**:
                 *   `graph.go`: (optional) common graph db logic 
+                *   `cayley/cayley.go`: `github.com/cayleygraph/cayley` based graph db . 1st implementation
                 *   `postgres/postgres_apacheage.go`: Adapter for interacting `apache_age`graph extension in postges.
                 *   `neo4j/neo4j.go`: Adapter for interacting with a neo4j server instance.
                 *   `dgraph/dgraph.go`: Dgraph adapter.
                 *   `postgres/postgres_apacheage_test.go`: Tests for interacting `apache_age` postgres instance
+                *   `cayley/cayley_test.go`: tests fpr `github.com/cayleygraph/cayley` based graph db . 
             *   **`kv/`**:
                 *   `kvstore.go`: (optional) common kvstore db logic 
                 *   `boltdb/boltdb.go`: boltdb kv store leveraging extension. 1st implementation
