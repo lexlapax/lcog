@@ -1,25 +1,61 @@
 # CogMem Configuration Example
 
+# Logging Configuration
+log:
+  # Log level can be "debug", "info", "warn", or "error"
+  level: "info"
+  # Format can be "text" or "json"
+  format: "text"
+
 # LTM (Long-Term Memory) Configuration
 ltm:
-  # Type can be "sql", "kv", "vector", or "graph"
-  type: "sql"
+  # Type can be "sqlstore", "kv", "vector", or "graph"
+  type: "sqlstore"
   
-  # SQL Backend Configuration
-  sql:
+  # SQL Store Backend Configuration
+  sqlstore:
     # Driver can be "postgres" or "sqlite"
-    driver: "postgres"
-    dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+    driver: "sqlite"
+    sqlite:
+      path: "./data/cogmem.db"
+    postgres:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
   
   # KV (Key-Value) Backend Configuration
   kv:
-    # Provider can be "redis" or "postgres_hstore"
-    provider: "redis"
+    # Provider can be "boltdb", "redis", or "postgres_hstore"
+    provider: "boltdb"
+    boltdb:
+      path: "./data/cogmem.bolt.db"
     redis:
       addr: "localhost:6379"
       password: ""
       db: 0
     postgres_hstore:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+  
+  # Vector Database Configuration
+  vector:
+    # Provider can be "postgres", "milvus", or "weaviate"
+    provider: "postgres"
+    postgres:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+    milvus:
+      addr: "localhost:19530"
+    weaviate:
+      addr: "localhost:8080"
+  
+  # Graph Database Configuration
+  graph:
+    # Provider can be "neo4j", "dgraph", or "postgres"
+    provider: "postgres"
+    neo4j:
+      uri: "bolt://localhost:7687"
+      username: "neo4j"
+      password: "password"
+    dgraph:
+      addr: "localhost:9080"
+    postgres:
       dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
 
 # Scripting Configuration
@@ -28,18 +64,28 @@ scripting:
   paths:
     - "./scripts/mmu"
     - "./scripts/reflection"
+  # Scripting engine settings
+  engine:
+    enable_sandboxing: true
+    script_timeout_ms: 1000
+    max_memory_mb: 100
+
+# MMU (Memory Management Unit) Configuration
+mmu:
+  # Enable Lua hooks for memory operations
+  enable_lua_hooks: true
 
 # Reasoning Engine Configuration
 reasoning:
   # Provider can be "openai", "anthropic", or "mock"
   provider: "mock"
   openai:
-    api_key: "sk-your-key-here"
-    model: "gpt-4-turbo"
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-4o"
+    max_tokens: 1000
+    temperature: 0.7
   anthropic:
-    api_key: "sk-ant-your-key-here"
+    api_key: "${ANTHROPIC_API_KEY}"
     model: "claude-3-opus-20240229"
-
-# Logging Configuration
-logging:
-  level: "info"  # debug, info, warn, error
+    max_tokens: 1000
+    temperature: 0.7

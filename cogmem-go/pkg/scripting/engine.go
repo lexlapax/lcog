@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lexlapax/cogmem/pkg/log"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -94,8 +95,15 @@ func NewLuaEngine(config Config) (*LuaEngine, error) {
 	// Setup the sandbox if enabled
 	if config.EnableSandboxing {
 		setupSandbox(L)
+		log.Debug("Lua engine initialized with sandbox enabled", 
+			"timeout_ms", config.ScriptTimeoutMs,
+			"max_memory_mb", config.MaxMemoryMB)
 	} else {
 		L.OpenLibs()
+		log.Debug("Lua engine initialized with sandbox disabled", 
+			"timeout_ms", config.ScriptTimeoutMs,
+			"max_memory_mb", config.MaxMemoryMB,
+			"warning", "full Lua libraries available")
 	}
 	
 	// Register API functions
@@ -109,7 +117,10 @@ func (e *LuaEngine) LoadScript(name string, content []byte) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	
+	log.Debug("Loading Lua script from string", "name", name, "size_bytes", len(content))
+	
 	if err := e.state.DoString(string(content)); err != nil {
+		log.Error("Failed to load Lua script", "name", name, "error", err)
 		return fmt.Errorf("failed to load script %s: %w", name, err)
 	}
 	
@@ -125,15 +136,20 @@ func (e *LuaEngine) LoadScriptFile(path string) error {
 	// Check if the file has already been loaded
 	absPath, err := filepath.Abs(path)
 	if err != nil {
+		log.Error("Failed to get absolute path for script file", "path", path, "error", err)
 		return fmt.Errorf("failed to get absolute path for %s: %w", path, err)
 	}
 	
 	if e.loadedFiles[absPath] {
+		log.Debug("Lua script file already loaded, skipping", "path", absPath)
 		return nil // Already loaded
 	}
 	
+	log.Debug("Loading Lua script from file", "path", absPath)
+	
 	// Load the file
 	if err := e.state.DoFile(path); err != nil {
+		log.Error("Failed to load Lua script file", "path", absPath, "error", err)
 		return fmt.Errorf("failed to load script file %s: %w", path, err)
 	}
 	
@@ -143,8 +159,12 @@ func (e *LuaEngine) LoadScriptFile(path string) error {
 
 // LoadScriptDir loads all Lua scripts from a directory.
 func (e *LuaEngine) LoadScriptDir(dir string) error {
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	log.Debug("Loading Lua scripts from directory", "dir", dir)
+	
+	fileCount := 0
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			log.Error("Error walking script directory", "path", path, "error", err)
 			return err
 		}
 		
@@ -158,8 +178,17 @@ func (e *LuaEngine) LoadScriptDir(dir string) error {
 			return nil
 		}
 		
+		fileCount++
 		return e.LoadScriptFile(path)
 	})
+	
+	if err != nil {
+		log.Error("Failed to load Lua scripts from directory", "dir", dir, "error", err)
+		return err
+	}
+	
+	log.Debug("Successfully loaded Lua scripts from directory", "dir", dir, "file_count", fileCount)
+	return nil
 }
 
 // ExecuteFunction calls a Lua function with the given arguments.
@@ -167,9 +196,15 @@ func (e *LuaEngine) ExecuteFunction(ctx context.Context, funcName string, args .
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	
+	log.DebugContext(ctx, "Executing Lua function", 
+		"function", funcName, 
+		"arg_count", len(args),
+	)
+	
 	// Get the function from global environment
 	fn := e.state.GetGlobal(funcName)
 	if fn.Type() != lua.LTFunction {
+		log.WarnContext(ctx, "Lua function not found", "function", funcName)
 		return nil, fmt.Errorf("%w: %s", ErrFunctionNotFound, funcName)
 	}
 	
@@ -177,6 +212,8 @@ func (e *LuaEngine) ExecuteFunction(ctx context.Context, funcName string, args .
 	done := make(chan struct{})
 	var result lua.LValue
 	var execErr error
+	
+	startTime := time.Now()
 	
 	// Push context to Lua state
 	pushContext(e.state, ctx)
@@ -188,6 +225,10 @@ func (e *LuaEngine) ExecuteFunction(ctx context.Context, funcName string, args .
 		// Push arguments to stack
 		luaArgs, err := convertArgsToLua(e.state, args...)
 		if err != nil {
+			log.ErrorContext(ctx, "Error converting arguments to Lua", 
+				"function", funcName, 
+				"error", err,
+			)
 			execErr = err
 			return
 		}
@@ -200,6 +241,10 @@ func (e *LuaEngine) ExecuteFunction(ctx context.Context, funcName string, args .
 		}, luaArgs...)
 		
 		if err != nil {
+			log.ErrorContext(ctx, "Error executing Lua function", 
+				"function", funcName, 
+				"error", err,
+			)
 			execErr = err
 			return
 		}
@@ -217,10 +262,25 @@ func (e *LuaEngine) ExecuteFunction(ctx context.Context, funcName string, args .
 		if execErr != nil {
 			return nil, execErr
 		}
+		
+		executionTime := time.Since(startTime)
+		log.DebugContext(ctx, "Lua function executed successfully", 
+			"function", funcName, 
+			"execution_time_ms", executionTime.Milliseconds(),
+		)
+		
 		return convertLuaToGo(result), nil
 	case <-time.After(time.Duration(e.config.ScriptTimeoutMs) * time.Millisecond):
+		log.ErrorContext(ctx, "Lua function execution timed out", 
+			"function", funcName, 
+			"timeout_ms", e.config.ScriptTimeoutMs,
+		)
 		return nil, ErrExecutionTimeout
 	case <-ctx.Done():
+		log.WarnContext(ctx, "Lua function execution canceled by context", 
+			"function", funcName, 
+			"error", ctx.Err(),
+		)
 		return nil, ctx.Err()
 	}
 }

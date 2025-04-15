@@ -2,9 +2,9 @@ package scripting
 
 import (
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/lexlapax/cogmem/pkg/log"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -40,15 +40,15 @@ func apiLog(L *lua.LState) int {
 	
 	switch level {
 	case "debug":
-		log.Printf("[LUA-DEBUG] %s", message)
+		log.Debug("Lua script message", "message", message)
 	case "info":
-		log.Printf("[LUA-INFO] %s", message)
+		log.Info("Lua script message", "message", message)
 	case "warn", "warning":
-		log.Printf("[LUA-WARN] %s", message)
+		log.Warn("Lua script message", "message", message)
 	case "error":
-		log.Printf("[LUA-ERROR] %s", message)
+		log.Error("Lua script message", "message", message)
 	default:
-		log.Printf("[LUA] %s", message)
+		log.Info("Lua script message", "message", message)
 	}
 	
 	return 0

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lexlapax/cogmem/pkg/entity"
+	"github.com/lexlapax/cogmem/pkg/log"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	bolt "go.etcd.io/bbolt"
 )
@@ -21,20 +22,37 @@ type BoltStore struct {
 
 // NewBoltStore creates a new BoltStore with the given database connection.
 func NewBoltStore(db *bolt.DB) *BoltStore {
-	return &BoltStore{
+	store := &BoltStore{
 		db: db,
 	}
+	
+	log.Debug("Initialized BoltDB LTM store adapter", 
+		"db_path", db.Path(),
+		"read_only", db.IsReadOnly(),
+	)
+	
+	return store
 }
 
 // Initialize creates the required buckets if they don't exist.
 // This is called internally by the Store method, but can be called
 // explicitly to ensure buckets are created at startup.
 func (b *BoltStore) Initialize(ctx context.Context) error {
-	return b.db.Update(func(tx *bolt.Tx) error {
+	log.DebugContext(ctx, "Initializing BoltDB store buckets")
+	
+	err := b.db.Update(func(tx *bolt.Tx) error {
 		// Create the main bucket to hold entity buckets
 		_, err := tx.CreateBucketIfNotExists([]byte("entities"))
 		return err
 	})
+	
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to initialize BoltDB buckets", "error", err)
+		return err
+	}
+	
+	log.DebugContext(ctx, "Successfully initialized BoltDB store buckets")
+	return nil
 }
 
 // getEntityBucket gets or creates a bucket for the specified entity.

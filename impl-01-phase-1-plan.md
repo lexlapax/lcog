@@ -26,7 +26,7 @@ For each significant piece of functionality within this phase:
 *   **1.2.** Initialize Go module (`go mod init <your-module-path>`).
 *   **1.3.** Create top-level directory structure:
     *   `pkg/`, `internal/`, `cmd/`, `configs/`, `scripts/`, `migrations/` (initially might be minimal if focusing on SQLite/BoltDB first), `test/`
-    *   Subdirs within `pkg/`: `agent/`, `config/`, `entity/`, `errors/`, `mem/`, `mem/ltm/`, `mem/ltm/adapters/`, `mem/ltm/adapters/mock/`, `mem/ltm/adapters/sqlstore/`, `mem/ltm/adapters/sqlstore/sqlite/`, `mem/ltm/adapters/kv/`, `mem/ltm/adapters/kv/boltdb/`, `mmu/`, `reasoning/`, `reasoning/adapters/`, `reasoning/adapters/mock/`, `scripting/`
+    *   Subdirs within `pkg/`: `agent/`, `config/`, `entity/`, `errors/`, `log/`, `mem/`, `mem/ltm/`, `mem/ltm/adapters/`, `mem/ltm/adapters/mock/`, `mem/ltm/adapters/sqlstore/`, `mem/ltm/adapters/sqlstore/sqlite/`, `mem/ltm/adapters/kv/`, `mem/ltm/adapters/kv/boltdb/`, `mmu/`, `reasoning/`, `reasoning/adapters/`, `reasoning/adapters/mock/`, `scripting/`
 *   **1.4.** Add basic `.gitignore`, `README.md` (with project description), `LICENSE`.
 *   **1.5.** Setup basic CI pipeline (`.github/workflows/go.yml`) to run `go build ./...` and `go test ./...` on pushes/PRs.
 
@@ -40,18 +40,21 @@ For each significant piece of functionality within this phase:
 *   **2.2. Implement `pkg/errors` (TDD):**
     *   **2.2.1. Test:** Write unit tests (`errors_test.go`) defining expected behavior for custom errors (wrapping standard errors, checking via `errors.Is`/`As`). Define initial errors like `ErrNotFound`, `ErrInvalidInput`.
     *   **2.2.2. Implement:** Define error types/variables (`errors.go`). Pass tests.
-*   **2.3. Define Core Interfaces:**
-    *   **2.3.1. Define `LTMStore` interface in `pkg/mem/ltm/ltm.go`.** Include methods like `Store(ctx context.Context, record MemoryRecord) error`, `Retrieve(ctx context.Context, query LTMQuery) ([]MemoryRecord, error)`, `Update(...)`, `Delete(...)`. Ensure signatures accept `context.Context`.
-    *   **2.3.2. Define `MMU` interface in `pkg/mmu/mmu.go`.** Include methods like `EncodeToLTM(ctx context.Context, dataToStore interface{}) error`, `RetrieveFromLTM(ctx context.Context, query LTMQuery) ([]MemoryRecord, error)`, `ConsolidateLTM(...) error` (placeholder for Phase 2).
-    *   **2.3.3. Define `ScriptingEngine` interface in `pkg/scripting/engine.go`.** Include methods like `LoadScript(name string, content []byte) error`, `ExecuteFunction(ctx context.Context, funcName string, args ...interface{}) (interface{}, error)`.
-    *   **2.3.4. Define `ReasoningEngine` interface in `pkg/reasoning/engine.go`.** Include `Process(ctx context.Context, prompt string, options ...ReasoningOption) (string, error)`, `GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error)` (implementation deferred).
+*   **2.3. Implement `pkg/log` (TDD):**
+    *   **2.3.1. Test:** Write unit tests (`log_test.go`) for structured logging using Go's `log/slog` package. Test the creation of loggers with different levels, handlers, and contexts.
+    *   **2.3.2. Implement:** Create a logging package (`log.go`) that provides standardized logging throughout the application. Support for different log levels, structured logging with context values, and customizable outputs.
+*   **2.4. Define Core Interfaces:**
+    *   **2.4.1. Define `LTMStore` interface in `pkg/mem/ltm/ltm.go`.** Include methods like `Store(ctx context.Context, record MemoryRecord) error`, `Retrieve(ctx context.Context, query LTMQuery) ([]MemoryRecord, error)`, `Update(...)`, `Delete(...)`. Ensure signatures accept `context.Context`.
+    *   **2.4.2. Define `MMU` interface in `pkg/mmu/mmu.go`.** Include methods like `EncodeToLTM(ctx context.Context, dataToStore interface{}) error`, `RetrieveFromLTM(ctx context.Context, query LTMQuery) ([]MemoryRecord, error)`, `ConsolidateLTM(...) error` (placeholder for Phase 2).
+    *   **2.4.3. Define `ScriptingEngine` interface in `pkg/scripting/engine.go`.** Include methods like `LoadScript(name string, content []byte) error`, `ExecuteFunction(ctx context.Context, funcName string, args ...interface{}) (interface{}, error)`.
+    *   **2.4.4. Define `ReasoningEngine` interface in `pkg/reasoning/engine.go`.** Include `Process(ctx context.Context, prompt string, options ...ReasoningOption) (string, error)`, `GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error)` (implementation deferred).
 
 ### Step 3: Configuration (`pkg/config`)
 
 *   **3.1. Implement (TDD):**
-    *   **3.1.1. Test:** Write unit tests (`config_test.go`) for loading YAML config. Define `Config` struct in the test first (include fields for `LTM.Type` (string), `LTM.SQLite.Path` (string), `LTM.BoltDB.Path` (string), `Lua.ScriptsPath` (string)). Test defaults, required fields, environment variable overrides.
+    *   **3.1.1. Test:** Write unit tests (`config_test.go`) for loading YAML config. Define `Config` struct in the test first (include fields for `LTM.Type` (string), `LTM.SQLite.Path` (string), `LTM.BoltDB.Path` (string), `Lua.ScriptsPath` (string), `Log.Level` (string), `Log.Format` (string)). Test defaults, required fields, environment variable overrides.
     *   **3.1.2. Implement:** Define the `Config` struct. Implement loading logic (`config.go`, `load.go`) using `viper` or similar. Pass tests.
-*   **3.2. Create Example:** Add `configs/config.example.yaml` matching the defined struct, showing how to configure SQLite and BoltDB paths.
+*   **3.2. Create Example:** Add `configs/config.example.yaml` matching the defined struct, showing how to configure SQLite and BoltDB paths, logging level and format options.
 
 ### Step 4: Testing Infrastructure (`test/`)
 
@@ -92,7 +95,7 @@ For each significant piece of functionality within this phase:
 
 *   **8.1. Implement (TDD):**
     *   **8.1.1. Test:** Write unit tests (`engine_test.go`) for the `ScriptingEngine` implementation: Test loading scripts (valid/invalid), executing functions (existing/non-existing), passing basic arguments (strings, numbers, bools), receiving return values, handling Lua runtime errors. Test sandboxing by asserting that `os`, `io`, etc., are nil or error out.
-    *   **8.1.2. Implement Engine:** Implement `engine.go` using `gopher-lua`. Initialize Lua state (`lua.NewState`) with options to `SkipOpenLibs` and selectively open safe base libraries (`base`, `table`, `string`, `math`).
+    *   **8.1.2. Implement Engine:** Implement `engine.go` using `gopher-lua`. Initialize Lua state (`lua.NewState`) with options to `SkipOpenLibs` and selectively open safe base libraries (`base`, `table`, `string`, `math`). Use the structured logger from `pkg/log` for all logging.
     *   **8.1.3. Test API:** Write unit tests (`api_test.go`) for Go functions exposed to Lua. Define simple Go functions (e.g., `Log(level string, msg string)`). Write tests executing Lua code that calls these functions, verifying calls (using spies/mocks if complex) and data marshalling (Go struct/map/slice <-> Lua table).
     *   **8.1.4. Implement API & Sandbox:** Implement the Go API functions (`api.go`) and register them with the Lua state during initialization. Finalize sandbox setup (`sandbox.go`). Ensure all scripting tests pass.
 *   **8.2. Create Examples:** Add basic placeholder Lua scripts like `scripts/mmu/retrieval_filter.lua` containing empty or logging functions (e.g., `function before_retrieve(ctx, query) print("Lua: before_retrieve called") return query end`).
@@ -104,7 +107,7 @@ For each significant piece of functionality within this phase:
         *   Test `EncodeToLTM`: Verify it correctly transforms input data into a `MemoryRecord` and calls `LTMStore.Store` with the record and the correct `entity.Context`.
         *   Test `RetrieveFromLTM`: Verify it constructs an appropriate `LTMQuery` based on input and context, calls `LTMStore.Retrieve`, and returns the results.
         *   Test Lua Hook Invocation: Verify `ScriptingEngine.ExecuteFunction("before_retrieve", ...)` is called before `LTMStore.Retrieve` with appropriate arguments (context, query). Verify `ScriptingEngine.ExecuteFunction("after_retrieve", ...)` is called after retrieval with results. Test correct handling if Lua functions return errors or modify data (e.g., the query).
-    *   **9.1.2. Implement:** Implement the basic MMU logic in `mmu.go`. Implement the logic to call Lua hooks via the `ScriptingEngine` in `lua_hooks.go`. Ensure unit tests pass.
+    *   **9.1.2. Implement:** Implement the basic MMU logic in `mmu.go`. Implement the logic to call Lua hooks via the `ScriptingEngine` in `lua_hooks.go`. Use structured logging from `pkg/log` instead of the standard library's `log` package. Ensure unit tests pass.
 
 ### Step 10: Reasoning Engine - Mock (`pkg/reasoning/`)
 

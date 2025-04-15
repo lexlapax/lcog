@@ -6,9 +6,9 @@
 ]]
 
 -- Called before LTMStore.Retrieve is executed
-function before_retrieve(ctx, query)
+function before_retrieve(query)
   -- Log the retrieval operation
-  log_info("MMU before_retrieve called with query: " .. (query.text or ""))
+  cogmem.log("info", "MMU before_retrieve called with query: " .. (query.text or ""))
   
   -- Optionally modify the query
   -- query.limit = 10
@@ -18,11 +18,26 @@ function before_retrieve(ctx, query)
 end
 
 -- Called after LTMStore.Retrieve returns results
-function after_retrieve(ctx, results)
+function after_retrieve(results)
   -- Log the number of results
-  log_info("MMU after_retrieve processing " .. #results .. " results")
+  cogmem.log("info", "MMU after_retrieve processing " .. #results .. " results")
   
   -- You can filter or re-rank the results here
   -- This example just returns them as-is
   return results
+end
+
+-- Called before encoding to LTM (placeholder)
+function before_encode(data)
+  cogmem.log("info", "MMU before_encode called")
+  
+  -- Optionally modify the data before encoding
+  return data
+end
+
+-- Called after encoding to LTM (placeholder)
+function after_encode(record_id)
+  cogmem.log("info", "MMU after_encode called with record ID: " .. record_id)
+  
+  return record_id
 end

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lexlapax/cogmem/pkg/entity"
+	"github.com/lexlapax/cogmem/pkg/log"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 )
 
@@ -26,9 +27,12 @@ type MockStore struct {
 
 // NewMockStore creates a new instance of the MockStore.
 func NewMockStore() *MockStore {
-	return &MockStore{
+	store := &MockStore{
 		records: make(map[entity.EntityID]map[string]ltm.MemoryRecord),
 	}
+	
+	log.Debug("Initialized LTM mock store adapter")
+	return store
 }
 
 // Store implements the LTMStore interface.
@@ -36,25 +40,33 @@ func (m *MockStore) Store(ctx context.Context, record ltm.MemoryRecord) (string,
 	// Extract entity context
 	entityCtx, ok := entity.GetEntityContext(ctx)
 	if !ok {
+		log.ErrorContext(ctx, "Missing entity context when storing memory record")
 		return "", entity.ErrMissingEntityContext
 	}
 	
 	// Fill in the entity ID if not already provided
 	if record.EntityID == "" {
 		record.EntityID = entityCtx.EntityID
+		log.DebugContext(ctx, "Setting EntityID from context", "entity_id", entityCtx.EntityID)
 	} else if record.EntityID != entityCtx.EntityID {
 		// Validate that the record entity ID matches the context entity ID
+		log.ErrorContext(ctx, "Record entity ID doesn't match context entity ID",
+			"record_entity_id", record.EntityID,
+			"context_entity_id", entityCtx.EntityID,
+		)
 		return "", fmt.Errorf("record entity ID must match context entity ID")
 	}
 	
 	// Fill in user ID if available and not already provided
 	if record.UserID == "" && entityCtx.UserID != "" {
 		record.UserID = entityCtx.UserID
+		log.DebugContext(ctx, "Setting UserID from context", "user_id", entityCtx.UserID)
 	}
 	
 	// Generate a unique ID if not provided
 	if record.ID == "" {
 		record.ID = uuid.New().String()
+		log.DebugContext(ctx, "Generated new record ID", "record_id", record.ID)
 	}
 	
 	// Set timestamps
@@ -72,11 +84,18 @@ func (m *MockStore) Store(ctx context.Context, record ltm.MemoryRecord) (string,
 	
 	// Initialize entity records map if it doesn't exist
 	if _, exists := m.records[record.EntityID]; !exists {
+		log.DebugContext(ctx, "Creating new entity record map", "entity_id", record.EntityID)
 		m.records[record.EntityID] = make(map[string]ltm.MemoryRecord)
 	}
 	
 	// Store the record
 	m.records[record.EntityID][record.ID] = record
+	
+	log.DebugContext(ctx, "Stored memory record in mock store", 
+		"record_id", record.ID, 
+		"entity_id", record.EntityID,
+		"content_length", len(record.Content),
+	)
 	
 	return record.ID, nil
 }
@@ -86,8 +105,16 @@ func (m *MockStore) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]ltm.Mem
 	// Extract entity context
 	entityCtx, ok := entity.GetEntityContext(ctx)
 	if !ok {
+		log.ErrorContext(ctx, "Missing entity context when retrieving memory records")
 		return nil, entity.ErrMissingEntityContext
 	}
+	
+	log.DebugContext(ctx, "Retrieving memory records", 
+		"entity_id", entityCtx.EntityID,
+		"query_text", query.Text,
+		"has_exact_match", query.ExactMatch != nil,
+		"limit", query.Limit,
+	)
 	
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -95,6 +122,7 @@ func (m *MockStore) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]ltm.Mem
 	// Get all records for the entity
 	entityRecords, exists := m.records[entityCtx.EntityID]
 	if !exists {
+		log.DebugContext(ctx, "No records found for entity", "entity_id", entityCtx.EntityID)
 		return []ltm.MemoryRecord{}, nil
 	}
 	
@@ -105,19 +133,28 @@ func (m *MockStore) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]ltm.Mem
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 100 // Default limit
+		log.DebugContext(ctx, "Using default limit for query", "default_limit", limit)
 	}
 	
+	recordsScanned := 0
+	recordsSkippedByAccess := 0
+	recordsSkippedByQuery := 0
+	
 	for _, record := range entityRecords {
+		recordsScanned++
+		
 		// First check access level
 		if record.AccessLevel == entity.PrivateToUser {
 			// If private, check if user ID matches
 			if record.UserID != entityCtx.UserID {
+				recordsSkippedByAccess++
 				continue
 			}
 		}
 		
 		// Check if record matches the query
 		if !m.recordMatchesQuery(record, query) {
+			recordsSkippedByQuery++
 			continue
 		}
 		
@@ -126,9 +163,18 @@ func (m *MockStore) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]ltm.Mem
 		
 		// Stop if we've reached the limit
 		if len(results) >= limit {
+			log.DebugContext(ctx, "Reached query limit", "limit", limit)
 			break
 		}
 	}
+	
+	log.DebugContext(ctx, "Retrieved memory records", 
+		"entity_id", entityCtx.EntityID,
+		"result_count", len(results),
+		"records_scanned", recordsScanned,
+		"skipped_by_access", recordsSkippedByAccess,
+		"skipped_by_query", recordsSkippedByQuery,
+	)
 	
 	return results, nil
 }

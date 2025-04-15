@@ -1,8 +1,7 @@
 package scripting
 
 import (
-	"log"
-
+	"github.com/lexlapax/cogmem/pkg/log"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -70,6 +69,6 @@ func safePrint(L *lua.LState) int {
 		args[i-1] = convertLuaToGo(L.Get(i))
 	}
 	
-	log.Println("[LUA]", args)
+	log.Info("Lua print output", "args", args)
 	return 0
 }
