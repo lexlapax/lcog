@@ -11,18 +11,18 @@ CogMem is a Go library that implements a cognitive architecture for LLM agents, 
 - Pluggable LTM backends (SQL, KV, Vector, Graph databases)
 - Lua scripting for customization and extension
 - Structured reflection and adaptation capabilities
+- Semantic search with vector embeddings (RAG)
 
 ## Project Status
 
-This project is currently in Phase 1 of development, which is now complete. Phase 1 implemented:
+This project is currently in Phase 2 of development, which is now complete. Phase 2 implemented:
 
-- Core library structure, interfaces, and testing infrastructure
-- Entity-based context management for multi-tenant isolation
-- Long-term memory with SQLite and BoltDB adapters
-- Lua scripting with custom hooks for memory operations
-- Memory Management Unit (MMU) for encoding/retrieving memories
-- CogMemClient facade for orchestrating component interactions
-- Example command-line application
+- Vector-based LTM storage using Chromem-go and PostgreSQL pgvector
+- OpenAI reasoning engine for embedding generation and processing
+- RAG (Retrieval-Augmented Generation) capabilities in the MMU
+- Basic reflection module for insight generation
+- Enhanced MMU with vector operations and working memory management
+- Updated CogMemClient with reflection triggering
 
 ## Getting Started
 
@@ -31,6 +31,8 @@ This project is currently in Phase 1 of development, which is now complete. Phas
 - Go 1.24+ (earlier versions may work but are not tested)
 - SQLite3 (for SQL storage option)
 - BoltDB (embedded, no separate installation needed)
+- OpenAI API key (for embedding generation and LLM reasoning)
+- Docker (optional, for running PostgreSQL with pgvector)
 
 ### Installation
 
@@ -61,7 +63,9 @@ The example client supports the following commands:
 - `!user <id>` - Set the current user ID
 - `!remember <text>` - Store a memory in LTM
 - `!lookup <query>` - Retrieve memories matching query
+- `!search <query>` - Semantic search for memories (RAG)
 - `!query <question>` - Ask a question using context from memories
+- `!reflect` - Trigger reflection process manually
 - `!config` - Show current configuration
 - `!quit` - Exit the application
 
@@ -71,60 +75,80 @@ The example client supports the following commands:
 $ ./bin/example-client
 
 === CogMem Client ===
-LTM Store: kv
-KV Provider: boltdb
+LTM Store: chromemgo
+Reasoning Engine: openai
 Current Entity: default-entity | Current User: default-user
 Type !help for available commands.
 
-cogmem::default-user@default-entity> !remember I like dogs.
+cogmem::default-user@default-entity> !remember I like dogs especially Golden Retrievers.
 Memory stored successfully with ID: 6a8e42f1-9e3d-45a8-af2e-6a0bc76c8e1c
 
-cogmem::default-user@default-entity> !remember Dogs come in many breeds.
+cogmem::default-user@default-entity> !remember Cats are independent and make good pets for busy people.
 Memory stored successfully with ID: d4f89c12-3e6c-42f1-90b2-f108d07a5f23
 
-cogmem::default-user@default-entity> !lookup dog
-Found 2 memories matching your query:
+cogmem::default-user@default-entity> !search pets for apartment living
+Found 1 memory matching your semantic search:
 
-Memory 1: Dogs come in many breeds.
+Memory 1: Cats are independent and make good pets for busy people.
   Created: 2025-04-14T23:56:31Z
 
-Memory 2: I like dogs.
-  Created: 2025-04-14T23:56:27Z
-
-cogmem::default-user@default-entity> !query What do I like?
-I've analyzed the memories and here's what I found: Based on your memories, you like dogs.
+cogmem::default-user@default-entity> !query What kind of pets do I like?
+I've analyzed your memories and found that you like dogs, especially Golden Retrievers. You also mentioned that cats make good pets for busy people because they're independent.
 ```
 
 ### Configuration
 
-You can configure the CogMem library by creating a `config.yaml` file in the current directory or in the `configs/` directory. Here's an example configuration file:
+You can configure the CogMem library by creating a `config.yaml` file in the current directory or in the `configs/` directory. Example configurations are available in the `configs/` directory:
+
+- `config.example.yaml` - General example with all options
+- `chromemgo.yaml` - Configuration for using Chromem-go vector database
+- `pgvector.yaml` - Configuration for using PostgreSQL with pgvector extension
+
+#### Vector LTM Configuration
 
 ```yaml
-# LTM (Long-Term Memory) Configuration
+# LTM with Chromem-go vector database
 ltm:
-  # Type can be "mock", "sql", or "kv"
-  type: "kv"
-  
-  # SQL Store Backend Configuration
-  sql:
-    driver: "sqlite"
-    dsn: "./data/cogmem.db"
-  
-  # KV (Key-Value) Backend Configuration 
-  kv:
-    provider: "boltdb"
-  
-# Scripting Configuration
-scripting:
-  # Paths to directories containing Lua scripts
-  paths:
-    - "./scripts/mmu"
-    - "./scripts/reflection"
+  type: "chromemgo"
+  chromemgo:
+    collection_name: "memories"
+    dimensions: 1536
+    distance_metric: "cosine"
+```
 
-# Reasoning Engine Configuration
+```yaml
+# LTM with PostgreSQL pgvector
+ltm:
+  type: "pgvector"
+  pgvector:
+    connection_string: "${PGVECTOR_URL}"
+    table_name: "memory_vectors"
+    dimensions: 1536
+    distance_metric: "cosine"
+```
+
+#### OpenAI Reasoning Engine Configuration
+
+```yaml
 reasoning:
-  # Currently only "mock" is supported in Phase 1
-  provider: "mock"
+  engine: "openai"
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-3.5-turbo"
+    embedding_model: "text-embedding-ada-002"
+    max_tokens: 1024
+    temperature: 0.7
+```
+
+#### Reflection Module Configuration
+
+```yaml
+reflection:
+  enabled: true
+  scripts_path: "scripts/reflection"
+  analysis_frequency: 100
+  analysis_model: "gpt-3.5-turbo"
+  analysis_temperature: 0.3
 ```
 
 ### Running Tests
@@ -141,6 +165,18 @@ make test-integration
 
 # Run benchmarks
 make bench
+```
+
+### Database Setup
+
+For PostgreSQL with pgvector:
+
+```bash
+# Start development databases
+make dev-db-up
+
+# Stop development databases
+make dev-db-down
 ```
 
 ### Building and Development
@@ -169,26 +205,46 @@ CogMem enforces multi-tenant isolation through entity contexts. All operations m
 
 The LTM subsystem provides persistent storage for memories with the following features:
 
-- Multiple backend adapters (SQLite, BoltDB)
+- Multiple backend adapters (SQLite, BoltDB, Chromem-go, PostgreSQL pgvector)
 - Entity-level isolation
 - Access control (private to user, shared within entity)
 - Metadata support
 - Text-based search
+- Vector-based semantic search
 
 ### Memory Management Unit (MMU)
 
 The MMU manages the flow of information between components:
 
-- Encoding data into LTM
+- Encoding data into LTM with automatic embedding generation
 - Retrieving memories from LTM using different strategies
 - Executing Lua hooks for memory operations
-- Preparing for memory consolidation (stub for Phase 2)
+- Working memory overflow management
+- Semantic search capabilities with vector embeddings
+
+### Reasoning Engine
+
+The Reasoning Engine provides:
+
+- LLM processing with OpenAI models
+- Embedding generation for semantic search
+- Context-aware processing for RAG use cases
+
+### Reflection Module
+
+The Reflection module enables self-improvement:
+
+- Analyzing memory patterns to derive insights
+- Generating structured insights about agent behavior
+- Storing insights back into LTM
+- Customizable with Lua scripts
 
 ### Lua Scripting
 
 CogMem includes a sandboxed Lua scripting engine for customization:
 
 - Hook functions for memory operations (before/after retrieve, before/after encode)
+- Reflection hooks for analysis customization
 - Sandboxed environment for security
 - Script directory scanning and loading
 - API for interacting with Go code
@@ -198,9 +254,10 @@ CogMem includes a sandboxed Lua scripting engine for customization:
 The CogMemClient provides a unified interface to the CogMem system:
 
 - Processing different input types (store, retrieve, query)
-- Coordinating between MMU and reasoning components
+- Coordinating between MMU, reasoning, and reflection components
 - Tracking operations for reflection
 - Managing entity context propagation
+- Triggering reflection cycles
 
 Note: The previous "Agent" interface has been renamed to "CogMemClient" for clarity, with a backward compatibility layer provided.
 
@@ -210,28 +267,40 @@ Note: The previous "Agent" interface has been renamed to "CogMemClient" for clar
 cogmem-go/
 ├── cmd/
 │   └── example-client/     # Command-line client application
-├── configs/               # Configuration files
-├── migrations/            # SQL migration files
-├── pkg/                   # Public library code (main library)
-│   ├── cogmem/            # CogMemClient facade & controller
-│   ├── config/            # Configuration loading
-│   ├── entity/            # Entity IDs and access levels
-│   ├── errors/            # Custom error types
-│   ├── mem/               # Memory subsystems
-│   │   └── ltm/           # Long-Term Memory interfaces
-│   │       └── adapters/  # LTM backend implementations
-│   │           ├── kv/    # Key-Value adapters (BoltDB)
-│   │           ├── mock/  # Mock adapter for testing
-│   │           └── sqlstore/ # SQL adapters (SQLite)
-│   ├── mmu/               # Memory Management Unit
-│   ├── reasoning/         # Reasoning interfaces and adapters
-│   └── scripting/         # Lua scripting engine
-├── scripts/               # Lua scripts
-│   ├── mmu/               # MMU hook functions
-│   └── reflection/        # Reflection scripts
-└── test/                  # Tests
-    └── integration/       # Integration tests
+├── configs/                # Configuration files
+├── docs/                   # Additional documentation
+│   ├── rag.md              # RAG capabilities documentation
+│   └── reflection.md       # Reflection module documentation
+├── migrations/             # SQL migration files
+├── pkg/                    # Public library code (main library)
+│   ├── cogmem/             # CogMemClient facade & controller
+│   ├── config/             # Configuration loading
+│   ├── entity/             # Entity IDs and access levels
+│   ├── errors/             # Custom error types
+│   ├── mem/                # Memory subsystems
+│   │   └── ltm/            # Long-Term Memory interfaces
+│   │       └── adapters/   # LTM backend implementations
+│   │           ├── kv/     # Key-Value adapters (BoltDB)
+│   │           ├── mock/   # Mock adapter for testing
+│   │           ├── sqlstore/ # SQL adapters (SQLite, Postgres)
+│   │           └── vector/ # Vector adapters (Chromem-go, pgvector)
+│   ├── mmu/                # Memory Management Unit
+│   ├── reasoning/          # Reasoning interfaces and adapters
+│   │   └── adapters/       # Reasoning engine adapters (OpenAI, Mock)
+│   ├── reflection/         # Reflection module
+│   └── scripting/          # Lua scripting engine
+├── scripts/                # Lua scripts
+│   ├── mmu/                # MMU hook functions
+│   └── reflection/         # Reflection scripts
+└── test/                   # Tests
+    ├── integration/        # Integration tests
+    └── testutil/           # Test helpers
 ```
+
+## Further Reading
+
+- [RAG Capabilities](./docs/rag.md) - Documentation on vector search and RAG
+- [Reflection Module](./docs/reflection.md) - Documentation on the reflection process
 
 ## License
 

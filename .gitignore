@@ -30,9 +30,6 @@ vendor/
 # Environment variables / Secrets
 # NEVER commit files containing secrets like API keys!
 .env
-.env.*
-# It's good practice to commit an example file, so explicitly allow it if you create one
-!/.env.example
 
 # Configuration Files (Optional)
 # If your config.yaml (or other config files) might contain sensitive data
@@ -40,9 +37,6 @@ vendor/
 # non-sensitive defaults safe for all developers/environments.
 config.yaml
 
-# Generated Documentation / Code
-# Output from tools like swaggo/swag
-docs/
 
 # Log files
 *.log

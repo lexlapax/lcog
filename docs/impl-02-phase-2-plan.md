@@ -144,7 +144,7 @@ For each significant piece of functionality within this phase:
 
 ### Step 8: (Optional Stretch) Other Vector LTM Adapters
 
-*   **8.1.** If time permits, implement adapters for other vector stores (e.g., `pkg/mem/ltm/adapters/vector/postgres_pgvector/`, `pkg/mem/ltm/adapters/vector/weaviate/`) following the same TDD pattern used for Chromem-go (Steps 1 & 2, adapting test helpers and implementation details).
+*   **8.1.** If time permits, implement adapters for other vector stores (e.g., `pkg/mem/ltm/adapters/vector/postgres_pgvector/`, `pkg/mem/ltm/adapters/vector/weaviate/` - skip weviate) following the same TDD pattern used for Chromem-go (Steps 1 & 2, adapting test helpers and implementation details).
 
 ### Step 9: Phase 2 Review & Refactor
 
