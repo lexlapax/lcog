@@ -1,0 +1,2 @@
+-- Drop pgvector extension (only if safe and no other part of the system depends on it)
+-- DROP EXTENSION IF EXISTS vector;

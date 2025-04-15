@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -72,6 +73,10 @@ Notes:
 const historyFile = ".cogmem_history"
 
 func main() {
+	// Parse command-line flags
+	configPath := flag.String("config", "", "Path to configuration file")
+	flag.Parse()
+	
 	// Initialize logger
 	log.Setup(log.Config{
 		Level:  log.InfoLevel,
@@ -81,7 +86,7 @@ func main() {
 	log.Info("Starting CogMem client")
 
 	// Load configuration
-	cfg, err := loadConfig()
+	cfg, err := loadConfig(*configPath)
 	if err != nil {
 		log.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
@@ -135,7 +140,24 @@ func main() {
 }
 
 // loadConfig loads the application configuration
-func loadConfig() (*config.Config, error) {
+func loadConfig(customPath string) (*config.Config, error) {
+	var cfg *config.Config
+	var err error
+	
+	// If a custom path is provided, try to load from there first
+	if customPath != "" {
+		if _, statErr := os.Stat(customPath); statErr == nil {
+			log.Info("Loading configuration from specified path", "path", customPath)
+			cfg, err = config.LoadFromFile(customPath)
+			if err == nil {
+				return cfg, nil
+			}
+			log.Warn("Failed to load config from specified path", "path", customPath, "error", err)
+		} else {
+			log.Warn("Config file not found at specified path", "path", customPath)
+		}
+	}
+	
 	// Look for config file in standard locations
 	configPaths := []string{
 		"./configs/config.yaml",
@@ -143,9 +165,6 @@ func loadConfig() (*config.Config, error) {
 		"../configs/config.yaml",
 		"../../configs/config.yaml",
 	}
-
-	var cfg *config.Config
-	var err error
 
 	// Try each path
 	for _, path := range configPaths {
@@ -173,16 +192,36 @@ func loadConfig() (*config.Config, error) {
 	// If still no config, use defaults with mock store
 	log.Info("Using default configuration with mock store")
 	
-	// Create a minimal default config
+	// Create a minimal default config with comprehensive defaults
 	defaultCfg := &config.Config{
 		LTM: config.LTMConfig{
 			Type: "mock",
+			ChromemGo: config.ChromemGoConfig{
+				URL:        "http://localhost:8080",
+				Collection: "memories",
+				Dimensions: 1536, // Default for OpenAI
+			},
 		},
 		Scripting: config.ScriptingConfig{
 			Paths: []string{"./scripts", "../scripts", "../../scripts"},
 		},
 		Reasoning: config.ReasoningConfig{
 			Provider: "mock",
+			OpenAI: config.OpenAIConfig{
+				Model:          "gpt-4",
+				EmbeddingModel: "text-embedding-3-small",
+				MaxTokens:      1000,
+				Temperature:    0.7,
+			},
+			Anthropic: config.AnthropicConfig{
+				Model: "claude-3-opus-20240229",
+			},
+		},
+		Reflection: config.ReflectionConfig{
+			Enabled:               true,
+			TriggerFrequency:      10,
+			MaxMemoriesToAnalyze:  50,
+			AnalysisTemperature:   0.3,
 		},
 		Logging: config.LoggingConfig{
 			Level: "info",

@@ -1,0 +1,52 @@
+# CogMem Configuration with PostgreSQL pgvector and OpenAI
+
+# Logging Configuration
+log:
+  level: "debug"
+  format: "text"
+
+# LTM (Long-Term Memory) Configuration
+ltm:
+  # Use pgvector as the vector storage backend
+  type: "pgvector"
+  
+  # pgvector (PostgreSQL Vector) Configuration
+  pgvector:
+    connection_string: "${PGVECTOR_URL}"
+    table_name: "memory_vectors"
+    dimensions: 1536
+    distance_metric: "cosine"  # cosine, euclidean, or dot
+
+# Reasoning Engine Configuration
+reasoning:
+  # Use OpenAI for reasoning and embeddings
+  engine: "openai"
+  
+  # OpenAI Configuration
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-3.5-turbo"
+    embedding_model: "text-embedding-ada-002"
+    max_tokens: 1024
+    temperature: 0.7
+
+# MMU (Memory Management Unit) Configuration
+mmu:
+  # Retrieval configuration
+  retrieval:
+    max_results: 5
+    similarity_threshold: 0.75
+    
+  # Embeddings configuration (for vector search)
+  embeddings:
+    enabled: true
+    
+  # Scripting configuration
+  scripting:
+    hooks_path: "scripts/mmu"
+
+# Reflection Module Configuration
+reflection:
+  enabled: true
+  scripts_path: "scripts/reflection"
+  analysis_frequency: 100  # Analyze after every 100 memories

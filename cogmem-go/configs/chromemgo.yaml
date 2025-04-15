@@ -1,33 +1,16 @@
-# CogMem Configuration Example
+# CogMem Configuration with ChromemGo and OpenAI
 
 # Logging Configuration
 log:
   # Log level can be "debug", "info", "warn", or "error"
-  level: "info"
+  level: "debug"
   # Format can be "text" or "json"
   format: "text"
 
 # LTM (Long-Term Memory) Configuration
 ltm:
-  # Type can be "sqlstore", "kv", "chromemgo", "mock"
-  type: "mock"
-  
-  # SQL Store Backend Configuration
-  sql:
-    # Driver can be "postgres" or "sqlite"
-    driver: "sqlite"
-    dsn: "./data/cogmem.db"
-  
-  # KV (Key-Value) Backend Configuration
-  kv:
-    # Provider can be "boltdb", "redis", or "postgres_hstore"
-    provider: "boltdb"
-    redis:
-      addr: "localhost:6379"
-      password: ""
-      db: 0
-    postgres_hstore:
-      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+  # Use ChromemGo as the vector storage backend
+  type: "chromemgo"
   
   # ChromemGo (Vector DB) Configuration
   chromemgo:
@@ -54,17 +37,13 @@ mmu:
 
 # Reasoning Engine Configuration
 reasoning:
-  # Provider can be "openai", "anthropic", or "mock"
-  provider: "mock"
+  # Use OpenAI for reasoning and embeddings
+  provider: "openai"
   openai:
+    # Get API key from environment variable
     api_key: "${OPENAI_API_KEY}"
     model: "gpt-4"
     embedding_model: "text-embedding-3-small"
-    max_tokens: 1000
-    temperature: 0.7
-  anthropic:
-    api_key: "${ANTHROPIC_API_KEY}"
-    model: "claude-3-opus-20240229"
     max_tokens: 1000
     temperature: 0.7
 
@@ -73,9 +52,9 @@ reflection:
   # Enable reflection process
   enabled: true
   # Number of interactions between reflection cycles
-  trigger_frequency: 10
+  trigger_frequency: 5
   # Maximum number of memories to analyze
-  max_memories_to_analyze: 50
+  max_memories_to_analyze: 20
   # Model to use for analysis (empty uses default)
   analysis_model: ""
   # Temperature for analysis (lower for more focus)

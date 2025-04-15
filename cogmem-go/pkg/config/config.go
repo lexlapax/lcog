@@ -20,7 +20,7 @@ type Config struct {
 
 // LTMConfig configures the long-term memory storage.
 type LTMConfig struct {
-	// Type specifies the LTM backend ("sql", "kv", "vector", "graph")
+	// Type specifies the LTM backend ("sql", "kv", "vector", "graph", "chromemgo", "pgvector")
 	Type string `yaml:"type"`
 	
 	// SQL configures SQL-based storage
@@ -31,6 +31,9 @@ type LTMConfig struct {
 	
 	// ChromemGo configures ChromemGo vector storage
 	ChromemGo ChromemGoConfig `yaml:"chromemgo"`
+	
+	// PgVector configures PostgreSQL pgvector storage
+	PgVector PgVectorConfig `yaml:"pgvector"`
 }
 
 // SQLConfig configures SQL-based LTM storage.
@@ -127,6 +130,21 @@ type ChromemGoConfig struct {
 	
 	// Dimensions specifies the embedding dimensions
 	Dimensions int `yaml:"dimensions"`
+}
+
+// PgVectorConfig configures PostgreSQL with pgvector extension
+type PgVectorConfig struct {
+	// ConnectionString is the PostgreSQL connection string
+	ConnectionString string `yaml:"connection_string"`
+	
+	// TableName is the name of the table to use
+	TableName string `yaml:"table_name"`
+	
+	// Dimensions specifies the embedding dimensions
+	Dimensions int `yaml:"dimensions"`
+	
+	// DistanceMetric is the distance metric to use (cosine, euclidean, dot)
+	DistanceMetric string `yaml:"distance_metric"`
 }
 
 // ReflectionConfig configures the reflection module.
