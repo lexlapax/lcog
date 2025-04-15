@@ -50,8 +50,8 @@ The example client provides a simple command-line interface to interact with the
 make run
 
 # Or build and run manually
-go build -o bin/example-agent ./cmd/example-agent
-./bin/example-agent
+go build -o bin/example-client ./cmd/example-client
+./bin/example-client
 ```
 
 The example client supports the following commands:
@@ -68,7 +68,7 @@ The example client supports the following commands:
 #### Example Usage
 
 ```
-$ ./bin/example-agent
+$ ./bin/example-client
 
 === CogMem Client ===
 LTM Store: kv
@@ -209,11 +209,10 @@ Note: The previous "Agent" interface has been renamed to "CogMemClient" for clar
 ```
 cogmem-go/
 ├── cmd/
-│   └── example-agent/     # Command-line client application
+│   └── example-client/     # Command-line client application
 ├── configs/               # Configuration files
 ├── migrations/            # SQL migration files
 ├── pkg/                   # Public library code (main library)
-│   ├── agent/             # Backward compatibility layer (deprecated)
 │   ├── cogmem/            # CogMemClient facade & controller
 │   ├── config/            # Configuration loading
 │   ├── entity/            # Entity IDs and access levels

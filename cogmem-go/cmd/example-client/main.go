@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/peterh/liner"
 	_ "github.com/mattn/go-sqlite3"
 	bolt "go.etcd.io/bbolt"
+	chromem "github.com/philippgille/chromem-go"
 
 	"github.com/lexlapax/cogmem/pkg/cogmem"
 	"github.com/lexlapax/cogmem/pkg/config"
@@ -19,11 +21,14 @@ import (
 	"github.com/lexlapax/cogmem/pkg/log"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/kv/boltdb"
-	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/mock"
+	ltmMock "github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/mock"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/sqlstore/sqlite"
+	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/vector/chromem_go"
 	"github.com/lexlapax/cogmem/pkg/mmu"
 	"github.com/lexlapax/cogmem/pkg/reasoning"
 	reasoningMock "github.com/lexlapax/cogmem/pkg/reasoning/adapters/mock"
+	reasoningOpenAI "github.com/lexlapax/cogmem/pkg/reasoning/adapters/openai"
+	"github.com/lexlapax/cogmem/pkg/reflection"
 	"github.com/lexlapax/cogmem/pkg/scripting"
 )
 
@@ -35,7 +40,9 @@ const (
 	cmdUser     = "!user"
 	cmdRemember = "!remember"
 	cmdLookup   = "!lookup"
+	cmdSearch   = "!search"  // New semantic search command
 	cmdQuery    = "!query"
+	cmdReflect  = "!reflect"
 	cmdConfig   = "!config"
 )
 
@@ -47,15 +54,19 @@ CogMem Client - Command Reference:
 !entity <id>          - Set the current entity ID
 !user <id>            - Set the current user ID
 !remember <text>      - Store a memory in LTM
-!lookup <query>       - Retrieve memories matching query
+!lookup <query>       - Retrieve memories matching query by keyword
+!search <query>       - Retrieve memories using semantic (vector) search
 !query <question>     - Ask a question using context from memories
+!reflect              - Trigger a reflection cycle manually
 !config               - Show current configuration
 !quit                 - Exit the application
 
 Notes:
 - Regular text input is treated as a query
 - Tab completion is available for commands
-- Use up/down arrows for command history`
+- Use up/down arrows for command history
+- Reflection occurs automatically based on configured frequency
+- Semantic search requires vector LTM and a reasoning engine (OpenAI)`
 
 // historyFile is the file where command history is stored
 const historyFile = ".cogmem_history"
@@ -101,12 +112,21 @@ func main() {
 		scriptEngine,
 		mmu.DefaultConfig(),
 	)
+	
+	// Initialize the Reflection Module
+	reflectionModule := reflection.NewReflectionModule(
+		mmuInstance,
+		reasoningEngine,
+		scriptEngine,
+		reflection.DefaultConfig(),
+	)
 
 	// Initialize the CogMemClient with all components
 	clientInstance := cogmem.NewCogMemClient(
 		mmuInstance,
 		reasoningEngine,
 		scriptEngine,
+		reflectionModule,
 		cogmem.DefaultConfig(),
 	)
 
@@ -181,7 +201,7 @@ func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 	case "mock", "":
 		// Use mock store for testing/demo
 		log.Info("Using mock LTM store")
-		return mock.NewMockStore(), nil
+		return ltmMock.NewMockStore(), nil
 
 	case "sql", "sqlstore":
 		sqlDriver := strings.ToLower(cfg.LTM.SQL.Driver)
@@ -249,6 +269,42 @@ func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 			return store, nil
 		}
 		return nil, fmt.Errorf("unsupported KV provider: %s", kvProvider)
+		
+	case "chromemgo", "vector":
+		// Initialize ChromemGo vector store
+		log.Info("Initializing ChromemGo vector store")
+		
+		// Get configuration values or use defaults
+		url := cfg.LTM.ChromemGo.URL
+		if url == "" {
+			url = "http://localhost:8080" // Default
+		}
+		
+		collectionName := cfg.LTM.ChromemGo.Collection
+		if collectionName == "" {
+			collectionName = "memories" // Default
+		}
+		
+		// Initialize the ChromemGo DB client (in-memory mode)
+		chromemClient := chromem.NewDB()
+		
+		// Get embedding dimensions from config
+		dimensions := cfg.LTM.ChromemGo.Dimensions
+		if dimensions == 0 {
+			dimensions = 1536 // Default for OpenAI embeddings
+		}
+		
+		// Create the adapter with the client
+		chromemAdapter, err := chromem_go.NewChromemGoAdapter(chromemClient, collectionName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ChromemGo adapter: %w", err)
+		}
+		
+		log.Info("Using ChromemGo vector store", 
+			"collection", collectionName,
+			"dimensions", dimensions)
+		
+		return chromemAdapter, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported LTM store type: %s", ltmType)
@@ -309,12 +365,47 @@ func initReasoningEngine(cfg *config.Config) reasoning.Engine {
 
 	switch provider {
 	case "openai":
-		// In Phase 1, we only support the mock engine
-		log.Warn("OpenAI provider not yet implemented, using mock reasoning engine")
-		return reasoningMock.NewMockEngine()
+		// Check if the API key is set
+		apiKey := cfg.Reasoning.OpenAI.APIKey
+		if apiKey == "" {
+			// Try to get it from environment
+			apiKey = os.Getenv("OPENAI_API_KEY")
+		}
+		
+		if apiKey == "" {
+			log.Warn("OpenAI API key not found, falling back to mock engine")
+			return reasoningMock.NewMockEngine()
+		}
+		
+		// Initialize the OpenAI adapter
+		openaiCfg := reasoningOpenAI.Config{
+			APIKey:         apiKey,
+			ChatModel:      cfg.Reasoning.OpenAI.Model,
+			EmbeddingModel: cfg.Reasoning.OpenAI.EmbeddingModel,
+		}
+		
+		// If model isn't set, use defaults
+		if openaiCfg.ChatModel == "" {
+			openaiCfg.ChatModel = "gpt-4" // Default model
+		}
+		if openaiCfg.EmbeddingModel == "" {
+			openaiCfg.EmbeddingModel = "text-embedding-3-small" // Default embedding model
+		}
+		
+		log.Info("Using OpenAI reasoning engine", 
+			"chat_model", openaiCfg.ChatModel,
+			"embedding_model", openaiCfg.EmbeddingModel)
+		
+		openaiAdapter, err := reasoningOpenAI.NewOpenAIAdapter(openaiCfg)
+		if err != nil {
+			log.Error("Failed to initialize OpenAI adapter, falling back to mock", "error", err)
+			return reasoningMock.NewMockEngine()
+		}
+		
+		return openaiAdapter
 
 	case "anthropic":
-		// In Phase 1, we only support the mock engine
+		// In Phase 2, we only support OpenAI and mock
 		log.Warn("Anthropic provider not yet implemented, using mock reasoning engine")
 		return reasoningMock.NewMockEngine()
 
@@ -356,7 +447,7 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 	
 	// Set tab completion
 	line.SetCompleter(func(line string) (c []string) {
-		commands := []string{cmdHelp, cmdQuit, cmdEntity, cmdUser, cmdRemember, cmdLookup, cmdQuery, cmdConfig}
+		commands := []string{cmdHelp, cmdQuit, cmdEntity, cmdUser, cmdRemember, cmdLookup, cmdSearch, cmdQuery, cmdReflect, cmdConfig}
 		for _, cmd := range commands {
 			if strings.HasPrefix(cmd, line) {
 				c = append(c, cmd)
@@ -502,6 +593,32 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 				} else {
 					fmt.Println(response)
 				}
+				
+			case cmdSearch:
+				query := ""
+				if len(parts) == 1 {
+					// Prompt for query if not provided
+					var err error
+					query, err = line.Prompt("Enter semantic search query: ")
+					if err != nil || strings.TrimSpace(query) == "" {
+						fmt.Println("Search cancelled")
+						continue
+					}
+				} else {
+					query = parts[1]
+				}
+				
+				// Create a special query for semantic search
+				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
+				fmt.Println("Performing semantic search...")
+				
+				// Use InputTypeQuery with a semantic search prefix to trigger vector search
+				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "SEMANTIC_SEARCH: "+query)
+				if err != nil {
+					fmt.Printf("Error in semantic search: %v\n", err)
+				} else {
+					fmt.Println(response)
+				}
 
 			case cmdQuery:
 				question := ""
@@ -524,6 +641,27 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 				} else {
 					fmt.Println(response)
 				}
+
+			case cmdReflect:
+				// Manually trigger reflection
+				fmt.Println("Manually triggering reflection cycle...")
+				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
+				
+				// We need to perform a dummy operation first to put something in working memory
+				_, err := clientInstance.Process(ctx, cogmem.InputTypeStore, "Manual reflection trigger at "+time.Now().Format(time.RFC3339))
+				if err != nil {
+					fmt.Printf("Error preparing for reflection: %v\n", err)
+					continue
+				}
+				
+				// Now trigger reflection directly (normally happens automatically based on operation count)
+				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "Perform reflection on recent memories and operations")
+				if err != nil {
+					fmt.Printf("Error during reflection: %v\n", err)
+				} else {
+					fmt.Println("Reflection completed successfully")
+					fmt.Println(response)
+				}
 				
 			case cmdConfig:
 				// Display current configuration
@@ -535,9 +673,21 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 					fmt.Printf("SQL DSN: %s\n", cfg.LTM.SQL.DSN)
 				} else if cfg.LTM.Type == "kv" {
 					fmt.Printf("KV Provider: %s\n", cfg.LTM.KV.Provider)
+				} else if cfg.LTM.Type == "chromemgo" || cfg.LTM.Type == "vector" {
+					fmt.Printf("ChromemGo URL: %s\n", cfg.LTM.ChromemGo.URL)
+					fmt.Printf("ChromemGo Collection: %s\n", cfg.LTM.ChromemGo.Collection)
 				}
-				fmt.Printf("Reasoning Provider: %s\n", cfg.Reasoning.Provider)
-				fmt.Printf("Log Level: %s\n", cfg.Logging.Level)
+				
+				fmt.Printf("\nReasoning Provider: %s\n", cfg.Reasoning.Provider)
+				if cfg.Reasoning.Provider == "openai" {
+					fmt.Printf("OpenAI Model: %s\n", cfg.Reasoning.OpenAI.Model)
+					fmt.Printf("OpenAI Embedding Model: %s\n", cfg.Reasoning.OpenAI.EmbeddingModel)
+				}
+				
+				fmt.Printf("\nReflection Enabled: %v\n", cfg.Reflection.Enabled)
+				fmt.Printf("Reflection Frequency: %d\n", cfg.Reflection.TriggerFrequency)
+				
+				fmt.Printf("\nLog Level: %s\n", cfg.Logging.Level)
 				fmt.Printf("Entity: %s\n", currentEntity)
 				fmt.Printf("User: %s\n", currentUser)
 

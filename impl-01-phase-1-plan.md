@@ -26,7 +26,7 @@ For each significant piece of functionality within this phase:
 *   **1.2.** Initialize Go module (`go mod init <your-module-path>`).
 *   **1.3.** Create top-level directory structure:
     *   `pkg/`, `internal/`, `cmd/`, `configs/`, `scripts/`, `migrations/` (initially might be minimal if focusing on SQLite/BoltDB first), `test/`
-    *   Subdirs within `pkg/`: `agent/`, `config/`, `entity/`, `errors/`, `log/`, `mem/`, `mem/ltm/`, `mem/ltm/adapters/`, `mem/ltm/adapters/mock/`, `mem/ltm/adapters/sqlstore/`, `mem/ltm/adapters/sqlstore/sqlite/`, `mem/ltm/adapters/kv/`, `mem/ltm/adapters/kv/boltdb/`, `mmu/`, `reasoning/`, `reasoning/adapters/`, `reasoning/adapters/mock/`, `scripting/`
+    *   Subdirs within `pkg/`: `cogmem/`, `config/`, `entity/`, `errors/`, `log/`, `mem/`, `mem/ltm/`, `mem/ltm/adapters/`, `mem/ltm/adapters/mock/`, `mem/ltm/adapters/sqlstore/`, `mem/ltm/adapters/sqlstore/sqlite/`, `mem/ltm/adapters/kv/`, `mem/ltm/adapters/kv/boltdb/`, `mmu/`, `reasoning/`, `reasoning/adapters/`, `reasoning/adapters/mock/`, `scripting/`
 *   **1.4.** Add basic `.gitignore`, `README.md` (with project description), `LICENSE`.
 *   **1.5.** Setup basic CI pipeline (`.github/workflows/go.yml`) to run `go build ./...` and `go test ./...` on pushes/PRs.
 
@@ -115,26 +115,26 @@ For each significant piece of functionality within this phase:
     *   **10.1.1. Test:** Write unit tests (`adapters/mock/mock_test.go`) for the mock `ReasoningEngine`. Test setting canned responses for `Process` and canned embeddings (e.g., `[][]float32{{0.1, 0.2}}`) for `GenerateEmbeddings`. Verify methods are called as expected.
     *   **10.1.2. Implement:** Implement the mock adapter (`adapters/mock/mock.go`) to satisfy the interface and pass tests.
 
-### Step 11: Agent Facade & Loop (`pkg/agent/`)
+### Step 11: CogMemClient Facade & Loop (`pkg/cogmem/`)
 
 *   **11.1. Implement (TDD):**
-    *   **11.1.1. Test:** Write unit tests (`agent_test.go`) for the `Agent` facade. Mock all dependencies (`MMU`, `ReasoningEngine`, etc.). Test the basic controller flow: Input -> `MMU.Retrieve` (mocked results) -> `Reasoning.Process` (mocked response) -> Action/Output (verify args if action module mocked). Verify `entity.Context` propagation to all dependency calls. Test error handling scenarios.
-    *   **11.1.2. Implement:** Implement the `Agent` struct (`agent.go`) accepting dependencies via a constructor (for DI). Implement the basic orchestration logic in `controller.go`. Pass unit tests.
+    *   **11.1.1. Test:** Write unit tests (`cogmem_test.go`) for the `CogMemClient` facade. Mock all dependencies (`MMU`, `ReasoningEngine`, etc.). Test the basic controller flow: Input -> `MMU.Retrieve` (mocked results) -> `Reasoning.Process` (mocked response) -> Action/Output (verify args if action module mocked). Verify `entity.Context` propagation to all dependency calls. Test error handling scenarios.
+    *   **11.1.2. Implement:** Implement the `CogMemClient` struct (`cogmem.go`) accepting dependencies via a constructor (for DI). Implement the basic orchestration logic in `controller.go`. Pass unit tests.
 
-### Step 12: Example Application (`cmd/example-agent/`)
+### Step 12: Example Application (`cmd/example-client/`)
 
-*   **12.1. Implement (TDD):** Create `cmd/example-agent/main.go`. The application should:
+*   **12.1. Implement (TDD):** Create `cmd/example-client/main.go`. The application should:
     *   Load configuration (`pkg/config`).
     *   Instantiate the selected `LTMStore` (SQLite or BoltDB based on config).
     *   Instantiate the `ScriptingEngine` and load scripts from the configured path.
     *   Instantiate the mock `ReasoningEngine`.
-    *   Instantiate the `pkg/agent.Agent` by injecting dependencies.
+    *   Instantiate the `pkg/cogmem.CogMemClient` by injecting dependencies.
     *   Implement command line editing via `liner` package and test
     *   Run a simple command-line loop:
         *   Read user input.
         *   Prompt for an Entity ID.
         *   Create `entity.Context`.
-        *   Call `Agent.Process(...)` with the input and context.
+        *   Call `CogMemClient.Process(...)` with the input and context.
         *   Print the result.
         *   Include specific commands like `!remember <text>` (calls `MMU.EncodeToLTM`) and `!lookup <query>` (calls `MMU.RetrieveFromLTM`).
     
@@ -150,4 +150,4 @@ For each significant piece of functionality within this phase:
 *   **13.2. Test Coverage:** Use `go test -cover` tools to assess test coverage. Identify and address significant gaps in unit or integration tests.
 *   **13.3. Refactor:** Implement improvements based on code reviews and test coverage analysis. Refine code structure, naming, error handling, and documentation. Ensure all tests continue to pass after refactoring.
 *   **13.4. CI Verification:** Confirm that the full test suite passes reliably in the automated CI environment.
-*   **13.5. Documentation:** Update `README.md` to accurately reflect Phase 1 capabilities (SQLite/BoltDB support, Lua hooks, basic agent loop). Add comprehensive godoc comments to all public types, functions, and interfaces within the `pkg/` directory. Explain basic configuration and how to run the example.
+*   **13.5. Documentation:** Update `README.md` to accurately reflect Phase 1 capabilities (SQLite/BoltDB support, Lua hooks, basic CogMemClient loop). Add comprehensive godoc comments to all public types, functions, and interfaces within the `pkg/` directory. Explain basic configuration and how to run the example.

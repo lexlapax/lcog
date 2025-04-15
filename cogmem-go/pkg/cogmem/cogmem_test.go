@@ -9,6 +9,7 @@ import (
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	"github.com/lexlapax/cogmem/pkg/mmu"
 	"github.com/lexlapax/cogmem/pkg/reasoning"
+	"github.com/lexlapax/cogmem/pkg/reflection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -79,16 +80,31 @@ func (m *MockScriptingEngine) Close() error {
 	return args.Error(0)
 }
 
+// MockReflectionModule is a mock implementation of the reflection.ReflectionModule interface
+type MockReflectionModule struct {
+	mock.Mock
+}
+
+func (m *MockReflectionModule) TriggerReflection(ctx context.Context) ([]*reflection.Insight, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*reflection.Insight), args.Error(1)
+}
+
 // Helper function to set up a test environment
-func setupClientTest(t *testing.T) (*CogMemClientImpl, *MockMMU, *MockReasoningEngine, *MockScriptingEngine, context.Context) {
+func setupClientTest(t *testing.T) (*CogMemClientImpl, *MockMMU, *MockReasoningEngine, *MockScriptingEngine, *MockReflectionModule, context.Context) {
 	mockMMU := new(MockMMU)
 	mockReasoning := new(MockReasoningEngine)
 	mockScripting := new(MockScriptingEngine)
+	mockReflection := new(MockReflectionModule)
 
 	client := NewCogMemClient(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
+		mockReflection,
 		DefaultConfig(),
 	)
 
@@ -96,12 +112,12 @@ func setupClientTest(t *testing.T) (*CogMemClientImpl, *MockMMU, *MockReasoningE
 	entityCtx := entity.NewContext("test-entity", "test-user")
 	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 
-	return client, mockMMU, mockReasoning, mockScripting, ctx
+	return client, mockMMU, mockReasoning, mockScripting, mockReflection, ctx
 }
 
 func TestCogMemClient_Process_MissingEntityContext(t *testing.T) {
 	// Setup
-	client, _, _, _, _ := setupClientTest(t)
+	client, _, _, _, _, _ := setupClientTest(t)
 
 	// Test with a context that doesn't have entity information
 	result, err := client.Process(context.Background(), InputTypeQuery, "test query")
@@ -114,7 +130,7 @@ func TestCogMemClient_Process_MissingEntityContext(t *testing.T) {
 
 func TestCogMemClient_Process_Store(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Set up expectations
 	mockMMU.On("EncodeToLTM", ctx, "test memory").Return("memory-123", nil)
@@ -130,7 +146,7 @@ func TestCogMemClient_Process_Store(t *testing.T) {
 
 func TestCogMemClient_Process_Store_Error(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Set up expectations with an error
 	mockError := errors.New("storage error")
@@ -148,7 +164,7 @@ func TestCogMemClient_Process_Store_Error(t *testing.T) {
 
 func TestCogMemClient_Process_Retrieve(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Create some mock memory records
 	mockRecords := []ltm.MemoryRecord{
@@ -182,7 +198,7 @@ func TestCogMemClient_Process_Retrieve(t *testing.T) {
 
 func TestCogMemClient_Process_Retrieve_NoResults(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Set up MMU expectation with empty results
 	mockMMU.On("RetrieveFromLTM", ctx, "test query", mock.Anything).Return([]ltm.MemoryRecord{}, nil)
@@ -198,7 +214,7 @@ func TestCogMemClient_Process_Retrieve_NoResults(t *testing.T) {
 
 func TestCogMemClient_Process_Retrieve_Error(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Set up MMU expectation with an error
 	mockError := errors.New("retrieval error")
@@ -216,7 +232,7 @@ func TestCogMemClient_Process_Retrieve_Error(t *testing.T) {
 
 func TestCogMemClient_Process_Query(t *testing.T) {
 	// Setup
-	client, mockMMU, mockReasoning, _, ctx := setupClientTest(t)
+	client, mockMMU, mockReasoning, _, _, ctx := setupClientTest(t)
 
 	// Create some mock memory records
 	mockRecords := []ltm.MemoryRecord{
@@ -248,7 +264,7 @@ func TestCogMemClient_Process_Query(t *testing.T) {
 
 func TestCogMemClient_Process_Query_NoRelevantMemories(t *testing.T) {
 	// Setup
-	client, mockMMU, mockReasoning, _, ctx := setupClientTest(t)
+	client, mockMMU, mockReasoning, _, _, ctx := setupClientTest(t)
 
 	// Set up MMU expectation with empty results
 	mockMMU.On("RetrieveFromLTM", ctx, mock.Anything, mock.Anything).Return([]ltm.MemoryRecord{}, nil)
@@ -268,7 +284,7 @@ func TestCogMemClient_Process_Query_NoRelevantMemories(t *testing.T) {
 
 func TestCogMemClient_Process_Query_MMUError(t *testing.T) {
 	// Setup
-	client, mockMMU, _, _, ctx := setupClientTest(t)
+	client, mockMMU, _, _, _, ctx := setupClientTest(t)
 
 	// Set up MMU expectation with an error
 	mockError := errors.New("memory retrieval error")
@@ -286,7 +302,7 @@ func TestCogMemClient_Process_Query_MMUError(t *testing.T) {
 
 func TestCogMemClient_Process_Query_ReasoningError(t *testing.T) {
 	// Setup
-	client, mockMMU, mockReasoning, _, ctx := setupClientTest(t)
+	client, mockMMU, mockReasoning, _, _, ctx := setupClientTest(t)
 
 	// Set up MMU expectation
 	mockMMU.On("RetrieveFromLTM", ctx, mock.Anything, mock.Anything).Return([]ltm.MemoryRecord{}, nil)
@@ -308,7 +324,7 @@ func TestCogMemClient_Process_Query_ReasoningError(t *testing.T) {
 
 func TestCogMemClient_Process_InvalidInputType(t *testing.T) {
 	// Setup
-	client, _, _, _, ctx := setupClientTest(t)
+	client, _, _, _, _, ctx := setupClientTest(t)
 
 	// Test with invalid input type
 	result, err := client.Process(ctx, "invalid", "test input")
@@ -318,20 +334,18 @@ func TestCogMemClient_Process_InvalidInputType(t *testing.T) {
 }
 
 func TestCogMemClient_Reflection(t *testing.T) {
-	// Skip this test as it's problematic with timing context changes
-	// The integration tests cover this functionality
-	t.Skip("This test has been skipped because it's covered by integration tests")
-	
 	// Setup
 	mockMMU := new(MockMMU)
 	mockReasoning := new(MockReasoningEngine)
 	mockScripting := new(MockScriptingEngine)
+	mockReflection := new(MockReflectionModule)
 
 	// Configure client with reflection enabled and frequency of 2
 	client := NewCogMemClient(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
+		mockReflection,
 		Config{
 			EnableReflection:    true,
 			ReflectionFrequency: 2, // Trigger reflection every 2 operations
@@ -355,11 +369,21 @@ func TestCogMemClient_Reflection(t *testing.T) {
 	mockMMU.On("RetrieveFromLTM", ctx, mock.Anything, mock.Anything).Return([]ltm.MemoryRecord{}, nil)
 	mockReasoning.On("Process", ctx, mock.Anything).Return("response2", nil).Once()
 	
-	// Expect a call to the scripting engine for reflection with any context
-	mockScripting.On("ExecuteFunction", mock.Anything, "reflect", mock.Anything).Return(nil, nil).Once()
+	// Expect a call to store the operation history
+	mockMMU.On("EncodeToLTM", mock.Anything, mock.Anything).Return("history-id", nil).Once()
 	
-	// Expect a call to consolidate the reflection insights
-	mockMMU.On("ConsolidateLTM", ctx, mock.Anything).Return(nil).Once()
+	// Create some mock insights for the reflection module to return
+	mockInsights := []*reflection.Insight{
+		{
+			ID:          "insight-1",
+			Type:        "pattern",
+			Description: "Test insight",
+			Confidence:  0.9,
+		},
+	}
+	
+	// Expect a call to the reflection module
+	mockReflection.On("TriggerReflection", mock.Anything).Return(mockInsights, nil).Once()
 
 	// Second operation should trigger reflection
 	_, err = client.Process(ctx, InputTypeQuery, "query2")
@@ -369,6 +393,7 @@ func TestCogMemClient_Reflection(t *testing.T) {
 	mockMMU.AssertExpectations(t)
 	mockReasoning.AssertExpectations(t)
 	mockScripting.AssertExpectations(t)
+	mockReflection.AssertExpectations(t)
 }
 
 func TestCogMemClient_ReflectionDisabled(t *testing.T) {
@@ -376,12 +401,14 @@ func TestCogMemClient_ReflectionDisabled(t *testing.T) {
 	mockMMU := new(MockMMU)
 	mockReasoning := new(MockReasoningEngine)
 	mockScripting := new(MockScriptingEngine)
+	mockReflection := new(MockReflectionModule)
 
 	// Configure client with reflection disabled
 	client := NewCogMemClient(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
+		mockReflection,
 		Config{
 			EnableReflection:    false,
 			ReflectionFrequency: 1, // Would trigger every operation if enabled
@@ -400,9 +427,9 @@ func TestCogMemClient_ReflectionDisabled(t *testing.T) {
 	_, err := client.Process(ctx, InputTypeQuery, "query")
 	require.NoError(t, err)
 
-	// Verify all expectations were met (no calls to scripting for reflection)
+	// Verify all expectations were met (no calls to scripting or reflection module)
 	mockMMU.AssertExpectations(t)
 	mockReasoning.AssertExpectations(t)
 	mockScripting.AssertNotCalled(t, "ExecuteFunction")
-	mockMMU.AssertNotCalled(t, "ConsolidateLTM")
+	mockReflection.AssertNotCalled(t, "TriggerReflection")
 }

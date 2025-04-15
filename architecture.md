@@ -33,7 +33,7 @@ The architectural goals directly reflect the PRD goals: deliver a robust, flexib
 ```mermaid
 graph TD
     subgraph Application Layer / Use Cases
-        Agent(CogMem Agent Facade / Executive Controller)
+        CogMemClient(CogMem Client Facade / Executive Controller)
         MMU(Memory Management Unit)
         Reflection(Reflection Module)
         Reasoning(Reasoning Engine Interface)
@@ -59,7 +59,7 @@ graph TD
     end
 
     subgraph External Systems
-        UserApp(User Application / Agent Host)
+        UserApp(User Application / CogMem Client Host)
         LLM_Service(LLM Service API)
         VectorDB_Service(Vector Database)
         GraphDB_Service(Graph Database)
@@ -68,12 +68,12 @@ graph TD
     end
 
     %% Interactions
-    UserApp --> Agent;
-    Agent --> Perception;
-    Agent --> MMU;
-    Agent --> Reasoning;
-    Agent --> Reflection;
-    Agent --> Action;
+    UserApp --> CogMemClient;
+    CogMemClient --> Perception;
+    CogMemClient --> MMU;
+    CogMemClient --> Reasoning;
+    CogMemClient --> Reflection;
+    CogMemClient --> Action;
 
     MMU --> LTM_Interface;
     MMU --> LuaEngine;
@@ -90,7 +90,7 @@ graph TD
 
     LTM_Interface --> CoreTypes;
     MMU --> CoreTypes;
-    Agent --> CoreTypes;
+    CogMemClient --> CoreTypes;
 
     VectorDB -- Implements --> LTM_Interface;
     GraphDB -- Implements --> LTM_Interface;
@@ -106,7 +106,7 @@ graph TD
 ```
 
 **Key Flows:**
-1.  **Request Handling:** User Application interacts with the `CogMem Agent Facade`. The Facade (acting as Executive Controller) receives the input and `entity_context`.
+1.  **Request Handling:** User Application interacts with the `CogMemClient Facade`. The Facade (acting as Executive Controller) receives the input and `entity_context`.
 2.  **Memory Operation:** The Controller invokes the `MMU`. The MMU, using the `entity_context`, interacts with the configured `LTM Store Interface` implementation (e.g., `VectorDB Adapter`) to retrieve or store data. LTM adapters handle communication with external databases, ensuring filtering by `entity_id` and `access_level`. Lua scripts might be invoked by the MMU for custom logic.
 3.  **Reasoning:** The Controller provides context (including retrieved LTM data) to the `Reasoning Engine Interface`. Its implementation (e.g., `LLM Client Adapter`) interacts with an external LLM.
 4.  **Reflection:** Periodically or triggered, the `Reflection Module` analyzes history (potentially via MMU reads), uses the `Reasoning Engine` for analysis, potentially invokes Lua scripts, and generates insights that trigger `MMU` consolidation actions.
@@ -115,9 +115,9 @@ graph TD
 
 The library will be organized into packages within the `pkg/` directory (intended for public use) and potentially `internal/` (for implementation details).
 
-*   **`pkg/cogmem` (or `pkg/agent`)**:
-    *   **Responsibilities:** Provides the main entry point/facade (`Agent` struct) for users of the library. Implements the Executive Controller logic. Manages the overall agent lifecycle, orchestrates module interactions, handles `entity_context` propagation.
-    *   **Key Interfaces:** Defines the primary `Agent` interface/struct.
+*   **`pkg/cogmem` **:
+    *   **Responsibilities:** Provides the main entry point/facade (`CogMemClient` struct) for users of the library. Implements the Executive Controller logic. Manages the overall agent lifecycle, orchestrates module interactions, handles `entity_context` propagation.
+    *   **Key Interfaces:** Defines the primary `CogMemClient` interface/struct.
     *   **Dependencies:** `config`, `entity`, `mmu`, `reflection`, `reasoning`, `perception`, `action`.
 
 *   **`pkg/entity`**:
@@ -144,7 +144,7 @@ The library will be organized into packages within the `pkg/` directory (intende
     *   **Dependencies:** `entity`, `mem/ltm`, `mem/wm`, `scripting`, `reasoning` (for summarization/structuring), `errors`, `config`.
 
 *   **`pkg/reflection`**:
-    *   **Responsibilities:** Implements the self-reflection loop. Analyzes agent history/performance within an `entity_context`. Generates insights. Triggers LTM consolidation via MMU. Integrates with Lua scripting.
+    *   **Responsibilities:** Implements the self-reflection loop. Analyzes CogMemClient history/performance within an `entity_context`. Generates insights. Triggers LTM consolidation via MMU. Integrates with Lua scripting.
     *   **Key Interfaces/Types:** `ReflectionModule` interface/struct.
     *   **Dependencies:** `entity`, `mmu`, `reasoning`, `scripting`, `errors`, `config`.
 
@@ -177,16 +177,16 @@ The library will be organized into packages within the `pkg/` directory (intende
 ## 5. Key Architectural Patterns & Concepts
 
 *   **Layered Architecture:** As described above, separating Infrastructure (LTM Adapters, LLM Clients, Lua Engine), Application Logic (MMU, Reflection, Agent Controller), and Domain (Core Types like EntityID).
-*   **Dependency Injection (DI):** The `CogMem Agent` (or user application) will act as the Composition Root. It will be responsible for instantiating concrete implementations (like specific LTM adapters, LLM clients) and injecting them into the modules that depend on their interfaces (e.g., injecting an `LTMStore` implementation into the `MMU`). DI frameworks are not strictly required but can be used.
+*   **Dependency Injection (DI):** The `CogMemClient` (or user application) will act as the Composition Root. It will be responsible for instantiating concrete implementations (like specific LTM adapters, LLM clients) and injecting them into the modules that depend on their interfaces (e.g., injecting an `LTMStore` implementation into the `MMU`). DI frameworks are not strictly required but can be used.
 *   **Interface-Based Design (Ports & Adapters):** Core logic depends on interfaces (`LTMStore`, `ReasoningEngine`). Concrete implementations (`adapters`) are provided externally. This enhances testability (mocking) and replaceability.
 *   **Context Propagation:** Go's `context.Context` can be used alongside custom `entity.Context` wrappers to propagate cancellation signals, deadlines, and crucially, the `EntityID` and potentially user-specific information throughout request handling.
 *   **Strategy Pattern:** Retrieval methods within the MMU, consolidation rules, or reflection analysis logic can be implemented using the Strategy pattern, potentially allowing selection via configuration or even Lua scripts.
 
 ## 6. Data Flow Example (Simplified Retrieval Request)
 
-1.  **UserApp -> `Agent.Process(input, entityCtx)`:** Application calls the main agent facade.
-2.  **Agent:** Stores `entityCtx`. Potentially calls `Perception` module.
-3.  **Agent -> `MMU.Retrieve(query, entityCtx, options)`:** Agent determines info is needed from LTM.
+1.  **UserApp -> `CogMemClient.Process(input, entityCtx)`:** Application calls the main CogMemClient facade.
+2.  **CogMemClient:** Stores `entityCtx`. Potentially calls `Perception` module.
+3.  **CogMemClient -> `MMU.Retrieve(query, entityCtx, options)`:** CogMemClient determines info is needed from LTM.
 4.  **MMU:**
     *   Applies `entityCtx` filter parameters.
     *   Selects retrieval strategy based on `options` or config.
@@ -201,9 +201,9 @@ The library will be organized into packages within the `pkg/` directory (intende
     *   Receives `[]MemoryRecord`.
     *   *Optionally:* Invokes Lua script via `ScriptingEngine` for post-retrieval ranking or filtering based on `entityCtx`.
     *   Formats results for WM/Reasoning.
-    *   Returns results to Agent.
-7.  **Agent:** Adds retrieved info to the context provided to the `ReasoningEngine`.
-8.  **Agent -> `ReasoningEngine.Process(contextWithLTM, prompt)`:** Calls the LLM.
+    *   Returns results to CogMemClient.
+7.  **CogMemClient:** Adds retrieved info to the context provided to the `ReasoningEngine`.
+8.  **CogMemClient -> `ReasoningEngine.Process(contextWithLTM, prompt)`:** Calls the LLM.
 9.  ... subsequent steps (Action, Response).
 
 ## 7. Multi-Tenancy Implementation Details
@@ -223,7 +223,7 @@ The library will be organized into packages within the `pkg/` directory (intende
 ## 9. Concurrency Model
 
 *   **Request-Level Concurrency:** The user application hosting the CogMem library is expected to handle incoming requests concurrently (e.g., one goroutine per HTTP request).
-*   **Intra-Request Concurrency:** Within a single agent request processing flow:
+*   **Intra-Request Concurrency:** Within a single CogMemClient request processing flow:
     *   I/O operations (LTMStore calls, LLM API calls) should be performed asynchronously using goroutines and channels or async patterns to avoid blocking the main processing thread.
     *   Reflection might run in a separate background goroutine, potentially triggered by events/timers.
     *   **Shared LTM Access:** Concurrent reads to shared memory are generally safe if adapters are stateless. Concurrent writes *require* careful handling:
@@ -260,7 +260,7 @@ The library will be organized into packages within the `pkg/` directory (intende
 ## 13. Deployment Considerations (as a Library)
 
 *   **Import:** Users import `pkg/cogmem` and other necessary public packages into their Go applications.
-*   **Instantiation:** The user application instantiates the `cogmem.Agent`, providing configuration and concrete implementations for required interfaces (especially LTMStore, ReasoningEngine, potentially Action/Perception).
+*   **Instantiation:** The user application instantiates the `cogmem.CogMemClient`, providing configuration and concrete implementations for required interfaces (especially LTMStore, ReasoningEngine, potentially Action/Perception).
 *   **Versioning:** Use Go modules and semantic versioning.
 *   **Dependencies:** Keep external dependencies minimal and well-justified.
 

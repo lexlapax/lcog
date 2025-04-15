@@ -11,6 +11,9 @@ type Config struct {
 	// Reasoning configures the reasoning engine (LLM)
 	Reasoning ReasoningConfig `yaml:"reasoning"`
 	
+	// Reflection configures the reflection module
+	Reflection ReflectionConfig `yaml:"reflection"`
+	
 	// Logging configures the logging behavior
 	Logging LoggingConfig `yaml:"logging"`
 }
@@ -25,6 +28,9 @@ type LTMConfig struct {
 	
 	// KV configures key-value storage
 	KV KVConfig `yaml:"kv"`
+	
+	// ChromemGo configures ChromemGo vector storage
+	ChromemGo ChromemGoConfig `yaml:"chromemgo"`
 }
 
 // SQLConfig configures SQL-based LTM storage.
@@ -89,8 +95,17 @@ type OpenAIConfig struct {
 	// APIKey is the OpenAI API key
 	APIKey string `yaml:"api_key"`
 	
-	// Model is the OpenAI model to use
+	// Model is the OpenAI model to use for chat/completion
 	Model string `yaml:"model"`
+	
+	// EmbeddingModel is the model to use for generating embeddings
+	EmbeddingModel string `yaml:"embedding_model"`
+	
+	// MaxTokens is the maximum number of tokens to generate
+	MaxTokens int `yaml:"max_tokens"`
+	
+	// Temperature controls randomness in generation (0.0-1.0)
+	Temperature float64 `yaml:"temperature"`
 }
 
 // AnthropicConfig configures Anthropic integration.
@@ -100,6 +115,36 @@ type AnthropicConfig struct {
 	
 	// Model is the Anthropic model to use
 	Model string `yaml:"model"`
+}
+
+// ChromemGoConfig configures ChromemGo vector storage.
+type ChromemGoConfig struct {
+	// URL is the ChromemGo server address
+	URL string `yaml:"url"`
+	
+	// Collection is the collection name to use
+	Collection string `yaml:"collection"`
+	
+	// Dimensions specifies the embedding dimensions
+	Dimensions int `yaml:"dimensions"`
+}
+
+// ReflectionConfig configures the reflection module.
+type ReflectionConfig struct {
+	// Enabled determines whether reflection is active
+	Enabled bool `yaml:"enabled"`
+	
+	// TriggerFrequency is the number of interactions between reflection cycles
+	TriggerFrequency int `yaml:"trigger_frequency"`
+	
+	// MaxMemoriesToAnalyze sets the maximum number of memories to include in analysis
+	MaxMemoriesToAnalyze int `yaml:"max_memories_to_analyze"`
+	
+	// AnalysisModel specifies the model to use for analysis (uses default if empty)
+	AnalysisModel string `yaml:"analysis_model"`
+	
+	// AnalysisTemperature sets the temperature for reasoning during analysis
+	AnalysisTemperature float64 `yaml:"analysis_temperature"`
 }
 
 // LoggingConfig configures logging behavior.

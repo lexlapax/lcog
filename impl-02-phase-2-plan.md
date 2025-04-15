@@ -107,14 +107,14 @@ For each significant piece of functionality within this phase:
         *   Use structured logging (`pkg/log`).
         *   Ensure all unit tests pass.
 
-### Step 6: Agent Facade Integration (`pkg/agent/`)
+### Step 6: CogMemClient Facade Integration (`pkg/cogmem/`)
 
 *   **6.1. Implement (TDD):**
-    *   **6.1.1. Test (`agent_test.go` - Unit):** Update Agent unit tests:
+    *   **6.1.1. Test (`cogmem_test.go` - Unit):** Update CogMemClient unit tests:
         *   **Test RAG Context:** Verify that when semantic retrieval results are returned from `MMU.RetrieveFromLTM`, they are formatted and included appropriately in the context passed to `ReasoningEngine.Process`.
-        *   **Test Reflection Triggering:** Mock the `ReflectionModule`. Verify the `Agent`'s main processing loop calls `ReflectionModule.TriggerReflection` based on configured conditions (e.g., after every N interactions, or on specific error types).
-    *   **6.1.2. Implement (`agent.go`, `controller.go`):**
-        *   Modify the `Agent` struct/constructor to accept the `ReflectionModule`.
+        *   **Test Reflection Triggering:** Mock the `ReflectionModule`. Verify the `AgeCogMemClientnt`'s main processing loop calls `ReflectionModule.TriggerReflection` based on configured conditions (e.g., after every N interactions, or on specific error types).
+    *   **6.1.2. Implement (`cogmem.go`, `controller.go`):**
+        *   Modify the `CogMemClient` struct/constructor to accept the `ReflectionModule`.
         *   Update the controller logic to handle RAG results from the MMU and include them in the reasoning context.
         *   Add logic to trigger the `ReflectionModule` based on simple conditions.
         *   Use structured logging (`pkg/log`).
@@ -129,12 +129,12 @@ For each significant piece of functionality within this phase:
         *   Include basic `Reflection` settings (e.g., `TriggerFrequency: <int>`, `AnalysisModel: <string>`).
         *   Include `Reasoning.OpenAI` settings (API key, embedding model, chat model).
     *   **7.1.2. Update Example Config:** Update `configs/config.example.yaml` with the new sections.
-*   **7.2. Enhance Example Application (`cmd/example-agent/`):**
-    *   **7.2.1. Implement:** Modify `cmd/example-agent/main.go`:
+*   **7.2. Enhance Example Application (`cmd/example-client/`):**
+    *   **7.2.1. Implement:** Modify `cmd/example-client/main.go`:
         *   Add logic to instantiate the `ChromemGoAdapter` if configured.
         *   Add logic to instantiate the `OpenAIAdapter` (reading key from config/env).
         *   Add logic to instantiate the `ReflectionModule`.
-        *   Pass the real `ReasoningEngine` and `ReflectionModule` to the `Agent`.
+        *   Pass the real `ReasoningEngine` and `ReflectionModule` to the `CogMemClient`.
         *   Modify the CLI loop or add commands to demonstrate RAG: e.g., a `!search <query>` command that explicitly triggers semantic retrieval and displays results, or modify the default processing to use RAG.
         *   Add logging output indicating when reflection is triggered.
     *   **7.2.2. Manual Test:** Run the example application configured with `ChromemGoAdapter` and `OpenAIAdapter`.
@@ -148,7 +148,7 @@ For each significant piece of functionality within this phase:
 
 ### Step 9: Phase 2 Review & Refactor
 
-*   **9.1. Code Review:** Conduct peer reviews focusing on Chromem-go integration, MMU vector logic, Reflection module structure, Reasoning engine implementation, and Agent loop changes.
+*   **9.1. Code Review:** Conduct peer reviews focusing on Chromem-go integration, MMU vector logic, Reflection module structure, Reasoning engine implementation, and CogMemClient loop changes.
 *   **9.2. Test Coverage:** Check coverage, especially for new modules/adapters and modified MMU logic. Add tests for gaps.
 *   **9.3. Refactor:** Implement improvements based on reviews. Ensure clarity, robustness, and adherence to conventions.
 *   **9.4. CI Verification:** Confirm the full test suite (including Chromem-go integration tests if feasible in CI) passes reliably.

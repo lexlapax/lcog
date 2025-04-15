@@ -28,7 +28,7 @@ cogmem-go/
 ├── .github/              # CI/CD workflows, issue templates, etc.
 ├── api/                  # (Optional) Public API data structures (if needed separate from pkg)
 ├── cmd/                  # Example applications, CLIs, or tools using the library
-│   └── example-agent/    # Example: A simple agent demonstrating library usage
+│   └── example-client/    # Example: A simple agent demonstrating library usage
 │       └── main.go
 ├── configs/              # Example configuration files (YAML, JSON)
 │   └── config.example.yaml
@@ -43,7 +43,7 @@ cogmem-go/
 │   ├── 0002_create_users_table.down.sql
 │   └── ...
 ├── pkg/                  # Public library code (importable by others) - THE CORE LIBRARY
-│   ├── agent/            # Main agent facade & Executive Controller (or pkg/cogmem/)
+│   ├── cogmem/           # Main CogMemClient facade & Executive Controller (or pkg/cogmem/)
 │   ├── config/           # Configuration loading structs and logic
 │   ├── entity/           # EntityID, AccessLevel, context definitions
 │   ├── errors/           # Custom error types
@@ -75,11 +75,11 @@ cogmem-go/
 
 This is the heart of the library, containing code intended for public consumption.
 
-*   **`pkg/agent/` (or `pkg/cogmem/`)**
-    *   `agent.go`: Defines the main `Agent` struct and its methods. Acts as the primary facade and Executive Controller.
+*   **`pkg/cogmem/` (or `pkg/cogmem/`)**
+    *   `cogmem.go`: Defines the main `CogMemClient` struct and its methods. Acts as the primary facade and Executive Controller.
     *   `interfaces.go`: (Optional) Defines interfaces implemented *by* the agent or expected *by* the agent if needed.
     *   `controller.go`: Implementation of the executive control loop logic.
-    *   `agent_test.go`: Unit tests for the agent facade and controller logic.
+    *   `cogmem_test.go`: Unit tests for the agent facade and controller logic.
 
 *   **`pkg/entity/`**
     *   `entity.go`: Defines `EntityID` (e.g., `type EntityID string`), `AccessLevel` (e.g., `type AccessLevel int`), `Context` struct.
@@ -197,7 +197,7 @@ This directory holds example programs or command-line tools that *use* the CogMe
 *   **`cmd/example-agent/main.go`**: A simple application that:
     *   Loads configuration (`pkg/config`).
     *   Instantiates LTM adapter, Reasoning adapter, Scripting engine.
-    *   Instantiates the `pkg/agent.Agent` facade, injecting the dependencies.
+    *   Instantiates the `pkg/cogmem.CogMemClient` facade, injecting the dependencies.
     *   Runs a simple interaction loop, processing input with a specific `entity.Context`.
 
 ## 8. `scripts/` Directory

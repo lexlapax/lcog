@@ -11,6 +11,7 @@ import (
 	"github.com/lexlapax/cogmem/pkg/log"
 	"github.com/lexlapax/cogmem/pkg/mmu"
 	"github.com/lexlapax/cogmem/pkg/reasoning"
+	"github.com/lexlapax/cogmem/pkg/reflection"
 	"github.com/lexlapax/cogmem/pkg/scripting"
 )
 
@@ -62,6 +63,9 @@ type CogMemClientImpl struct {
 	// scriptingEngine is the Lua scripting engine
 	scriptingEngine scripting.Engine
 	
+	// reflectionModule is the module for self-reflection
+	reflectionModule reflection.ReflectionModule
+	
 	// config contains client configuration options
 	config Config
 	
@@ -84,12 +88,14 @@ func NewCogMemClient(
 	memoryManager mmu.MMU,
 	reasoningEngine reasoning.Engine,
 	scriptingEngine scripting.Engine,
+	reflectionModule reflection.ReflectionModule,
 	config Config,
 ) *CogMemClientImpl {
 	client := &CogMemClientImpl{
 		memoryManager:    memoryManager,
 		reasoningEngine:  reasoningEngine,
 		scriptingEngine:  scriptingEngine,
+		reflectionModule: reflectionModule,
 		config:           config,
 		opCount:          0,
 		operationHistory: make([]OperationRecord, 0, 10), // Keep last 10 operations for reflection
@@ -217,6 +223,16 @@ func (c *CogMemClientImpl) handleRetrieve(ctx context.Context, input string) (st
 func (c *CogMemClientImpl) handleQuery(ctx context.Context, input string) (string, error) {
 	log.DebugContext(ctx, "Handling query operation", "query", input)
 	
+	// Check if this is a special semantic search request
+	isSemanticSearchRequest := false
+	semanticPrefix := "SEMANTIC_SEARCH: "
+	if strings.HasPrefix(input, semanticPrefix) {
+		isSemanticSearchRequest = true
+		// Remove the prefix for processing
+		input = strings.TrimPrefix(input, semanticPrefix)
+		log.DebugContext(ctx, "Detected semantic search request", "query", input)
+	}
+	
 	// Configure retrieval for semantic search
 	options := mmu.RetrievalOptions{
 		MaxResults:     5,   // Limit to most relevant memories
@@ -236,7 +252,36 @@ func (c *CogMemClientImpl) handleQuery(ctx context.Context, input string) (strin
 		return "", err
 	}
 	
-	// Build prompt with context if available
+	// If this is a semantic search request, return the results directly
+	if isSemanticSearchRequest {
+		if len(memories) == 0 {
+			return "No memories found matching your semantic search.", nil
+		}
+		
+		var resultBuilder strings.Builder
+		resultBuilder.WriteString(fmt.Sprintf("Found %d memories semantically related to your search:\n\n", len(memories)))
+		
+		for i, memory := range memories {
+			resultBuilder.WriteString(fmt.Sprintf("Memory %d: %s\n", i+1, memory.Content))
+			
+			// Include similarity score if available
+			if memory.Metadata != nil {
+				if score, ok := memory.Metadata["score"].(float64); ok {
+					resultBuilder.WriteString(fmt.Sprintf("  Similarity: %.2f%%\n", score*100))
+				}
+			}
+			
+			// Add creation time if available
+			if !memory.CreatedAt.IsZero() {
+				resultBuilder.WriteString(fmt.Sprintf("  Created: %s\n", memory.CreatedAt.Format(time.RFC3339)))
+			}
+			resultBuilder.WriteString("\n")
+		}
+		
+		return resultBuilder.String(), nil
+	}
+	
+	// For regular queries, build prompt with context if available
 	var prompt string
 	if len(memories) > 0 {
 		log.DebugContext(ctx, "Found relevant context memories", "count", len(memories))
@@ -298,47 +343,41 @@ func (c *CogMemClientImpl) shouldReflect() bool {
 
 // reflect performs reflection on recent operations
 func (c *CogMemClientImpl) reflect(ctx context.Context) {
-	// Skip if there's no scripting engine or no operations to reflect on
-	if c.scriptingEngine == nil || len(c.operationHistory) == 0 {
+	// Skip if there's no reflection module or no operations to reflect on
+	if c.reflectionModule == nil || len(c.operationHistory) == 0 {
 		return
 	}
 	
 	log.DebugContext(ctx, "Performing reflection", "history_length", len(c.operationHistory))
 	
-	// For testing purposes, create a shorter timeout context
-	reflectCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	
-	// Convert operation history to JSON for Lua
+	// Also store the recent operation history in LTM before reflection
 	historyJSON, err := json.Marshal(c.operationHistory)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to marshal operation history for reflection", "error", err)
 		return
 	}
 	
-	// Use a simplified history for testing if it's large
-	historyStr := string(historyJSON)
-	if len(historyStr) > 1000 {
-		// Use a shorter version for testing
-		shortHistory := fmt.Sprintf(`[{"input_type":"test","input":"test input","response":"test response"}]`)
-		log.WarnContext(ctx, "Using simplified history for reflection due to large size", 
-			"original_size", len(historyStr),
-			"simplified_size", len(shortHistory))
-		historyStr = shortHistory
+	// Store the history with metadata
+	historyData := map[string]interface{}{
+		"content": string(historyJSON),
+		"metadata": map[string]interface{}{
+			"type":           "operation_history",
+			"operation_count": c.opCount,
+			"timestamp":      time.Now().Format(time.RFC3339),
+		},
 	}
 	
-	// Call the Lua reflection function
-	insights, err := c.scriptingEngine.ExecuteFunction(reflectCtx, "reflect", historyStr)
+	// Store the history in LTM (ignore errors, this is just for context)
+	_, _ = c.memoryManager.EncodeToLTM(ctx, historyData)
+	
+	// Trigger the reflection process
+	insights, err := c.reflectionModule.TriggerReflection(ctx)
 	if err != nil {
-		log.ErrorContext(ctx, "Error executing reflection script", "error", err)
+		log.ErrorContext(ctx, "Error during reflection process", "error", err)
 		return
 	}
 	
-	// Always attempt to consolidate insights, even if nil
-	// This makes testing easier and is consistent with our implementation
-	log.DebugContext(ctx, "Reflection completed", "insights", insights)
-	
-	if err := c.memoryManager.ConsolidateLTM(ctx, insights); err != nil {
-		log.ErrorContext(ctx, "Failed to consolidate reflection insights", "error", err)
-	}
+	log.DebugContext(ctx, "Reflection completed", 
+		"insight_count", len(insights),
+		"operation_count", c.opCount)
 }

@@ -79,11 +79,11 @@ For each significant piece of functionality:
 10. **Reasoning Engine - Mock (`pkg/reasoning/`):**
     *   **Implement (TDD):** Test and implement the mock `ReasoningEngine` adapter (`adapters/mock/`).
 
-11. **Agent Facade & Loop (`pkg/agent/`):**
-    *   **Implement (TDD):** Test and implement the `Agent` facade and basic controller loop, mocking dependencies. Ensure it initializes and uses the MMU (which in turn uses the single configured LTM). Test `entity.Context` propagation.
+11. **CogMemClient Facade & Loop (`pkg/cogmem/`):**
+    *   **Implement (TDD):** Test and implement the `CogMemClient` facade and basic controller loop, mocking dependencies. Ensure it initializes and uses the MMU (which in turn uses the single configured LTM). Test `entity.Context` propagation.
 
-12. **Example Application (`cmd/example-agent/`):**
-    *   **Implement & Test:** Create `cmd/example-agent/main.go`. It should load config, instantiate the *configured* LTM adapter (SQLite *or* BoltDB), scripting engine, mock reasoning engine, and the Agent. Run a simple CLI loop demonstrating storing/retrieving within an entity context using the selected backend. Manually test switching the backend via configuration.
+12. **Example Application (`cmd/example-client/`):**
+    *   **Implement & Test:** Create `cmd/example-client/main.go`. It should load config, instantiate the *configured* LTM adapter (SQLite *or* BoltDB), scripting engine, mock reasoning engine, and the CogMemClient. Run a simple CLI loop demonstrating storing/retrieving within an entity context using the selected backend. Manually test switching the backend via configuration.
 
 13. **Phase 1 Review & Refactor:**
     *   Conduct code reviews, check test coverage, refactor for clarity and robustness. Ensure all tests pass in CI.
@@ -123,11 +123,11 @@ For each significant piece of functionality:
     *   **Implement (TDD):**
         *   Test and implement the basic `ReflectionModule` structure and logic (`reflection_test.go`, `reflection.go`, `analyzer.go`, `insight.go`), mocking dependencies (`MMU`, `ReasoningEngine`). Test basic triggering, analysis flow, insight generation, and the call to `MMU.ConsolidateLTM` (still likely a basic implementation in MMU). Test basic reflection-related Lua hooks.
 
-6.  **Agent Loop Integration (RAG & Reflection):**
-    *   **Implement (TDD):** Update `Agent` tests and implementation to integrate RAG results (when semantic retrieval is used) into the reasoning context and add basic reflection module triggering.
+6.  **CogMemClient Loop Integration (RAG & Reflection):**
+    *   **Implement (TDD):** Update `CogMemClient` tests and implementation to integrate RAG results (when semantic retrieval is used) into the reasoning context and add basic reflection module triggering.
 
 7.  **Examples & Configuration:**
-    *   **Update Example:** Enhance `cmd/example-agent` to demonstrate RAG workflow *when configured to use Chromem-go*.
+    *   **Update Example:** Enhance `cmd/example-client` to demonstrate RAG workflow *when configured to use Chromem-go*.
     *   **Update Config:** Add Chromem-go connection parameters to `configs/config.example.yaml` and the option to select `"Chromem-go"` as the `LTM.Type`. Add basic reflection config options.
 
 8.  **(Optional Stretch) Other Vector Adapters:** Implement adapters for Postgres/pgvector or Weaviate if time allows, following TDD.

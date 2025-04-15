@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `make test-verbose` - Run tests with verbose output
 - `make test-integration` - Run integration tests (requires database)
 - `make bench` - Run benchmarks
-- `make run` - Run the example agent
+- `make run` - Run the example client
 - `make fmt` - Format code
 - `make lint` - Run linter
 - `make sqlc-gen` - Generate SQL client code for adapters
@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `go test ./pkg/...` - Run all unit tests
 - `go test -v ./pkg/specific/package` - Run tests in specific package
 - `INTEGRATION_TESTS=true go test ./test/integration/...` - Run integration tests
-- `go run cmd/example-agent/main.go` - Run the example agent
+- `go run cmd/example-client/main.go` - Run the example client
 - `go fmt ./...` - Format code
 - `sqlc generate` - Generate SQL client code for adapters
 - `golangci-lint run` - Run linter
