@@ -1,188 +1,267 @@
-# Architecture Document: LCOG
+# Software Architecture Document: CogMem Library (Golang)
 
 **Version:** 1.0
-**Date:** [Date Created]
-**Author(s):** [Author Name(s)]
-**Status:** [Draft | In Review | Proposed | Approved]
+**Date:** 2023-10-27 (Placeholder)
+**Authors:** AI Language Model based on provided context
 
----
+## 1. Introduction
 
-## 1. Introduction & Overview
+This document outlines the software architecture for the **CogMem Library**, a Golang framework designed to implement the CogMem cognitive architecture as described in the whitepaper and Product Requirements Document (PRD). The library aims to provide developers with a modular, performant, multi-tenant, and scriptable foundation for building LLM agents with advanced memory and adaptation capabilities. The primary implementation language is Go, leveraging its concurrency features and strong typing, with embedded Lua (`gopher-lua`) for flexible customization.
 
-*   **1.1. Purpose:** This document describes the architecture for the `[Your Project Name]` project. It details the technical design choices, components, interactions, and infrastructure required to meet the requirements outlined in the Product Requirements Document (PRD).
-*   **1.2. Goals & Constraints:** Briefly reiterate the key technical goals (e.g., scalability, maintainability, performance) and any major constraints (e.g., budget, timeline, existing systems, required technologies).
-*   **1.3. Related Documents:**
-    *   **Product Requirements Document (PRD):** [Link to prd.md](./prd.md)
-    *   **Project Structure Philosophy:** [Link to project-structure.md](./project-structure.md)
+**Scope:** This document focuses on the internal structure, components, interactions, patterns, and implementation strategies for the Golang library itself. It does not detail specific application implementations built *using* the library.
 
----
+## 2. Guiding Principles & Goals
 
-## 2. Guiding Principles & Philosophy
+The architecture adheres to the following principles:
 
-*   **2.1. Core Architectural Style:** This project adheres to the principles outlined in `project-structure.md`, primarily:
-    *   **Feature-Based Slicing:** Organizing code by business capability for high cohesion.
-    *   **Layered Architecture (Onion/Clean):** Ensuring dependencies flow inwards, promoting separation of concerns, testability, and maintainability via Dependency Inversion.
-*   **2.2. Other Principles:** List any other key architectural principles followed (e.g., SOLID, DRY, KISS, YAGNI, CQRS if applicable).
-    *   `[Example: SOLID principles will be followed where applicable.]`
-    *   `[Example: Favor composition over inheritance.]`
+*   **Modularity:** Components are distinct Go packages with clear responsibilities and interfaces (inspired by Cognitive Architectures).
+*   **Layered Architecture (Onion/Clean):** Dependencies flow inwards (Infrastructure/Adapters -> Application Logic -> Domain Core). Strict separation of concerns.
+*   **Dependency Inversion:** Inner layers define interfaces (ports); outer layers implement them (adapters). Promotes testability and flexibility.
+*   **Multi-Tenancy Native:** Entity context (`entity_id`, access levels) is a first-class citizen, enforced throughout relevant modules (MMU, LTM).
+*   **Extensibility:** Designed for extension through interface implementations (e.g., LTM backends) and Lua scripting.
+*   **Performance & Concurrency:** Leverage Go's capabilities for efficient execution, especially around I/O.
+*   **Testability:** Emphasis on unit and integration testing facilitated by modularity and interfaces.
+*   **Scriptability:** Provide controlled flexibility via embedded Lua (`gopher-lua`) at key points.
+*   **Security:** Prioritize secure design, especially regarding Lua sandboxing and data isolation.
 
----
+The architectural goals directly reflect the PRD goals: deliver a robust, flexible, multi-tenant Go library implementing the CogMem concepts.
 
-## 3. Technology Stack
+## 3. High-Level Architecture Diagram (Conceptual)
 
-List the primary technologies chosen for each relevant platform/component. Justify non-obvious choices.
+*(Mermaid Diagram Description - visualize this)*
 
-*   **3.1. Backend:**
-    *   Language: `[e.g., Go 1.19 / Python 3.10]`
-    *   Framework: `[e.g., Gin / FastAPI / None]`
-    *   Database: `[e.g., PostgreSQL 14 / MongoDB Atlas / None]`
-    *   ORM/DB Driver: `[e.g., GORM / pgx / SQLAlchemy / Pymongo]`
-    *   Caching: `[e.g., Redis / Memcached / None]`
-    *   Messaging Queue: `[e.g., RabbitMQ / Kafka / None]`
-    *   Key Libraries: `[List any other crucial libraries]`
-*   **3.2. Frontend (Web):**
-    *   Framework/Library: `[e.g., React 18 / Vue 3 / Angular 14]`
-    *   Language: `[e.g., TypeScript 4.8 / JavaScript ES2022]`
-    *   State Management: `[e.g., Zustand / Redux Toolkit / Context API / Pinia]`
-    *   UI Library: `[e.g., Material UI / Tailwind CSS / None]`
-    *   Build Tool: `[e.g., Vite / Webpack / Next.js CLI]`
-    *   Key Libraries: `[List any other crucial libraries]`
-*   **3.3. Mobile (Android Native):**
-    *   Language: `[e.g., Kotlin 1.7]`
-    *   UI Toolkit: `[e.g., Jetpack Compose]`
-    *   Architecture Components: `[e.g., ViewModel, Room, Navigation, Hilt, Coroutines/Flow]`
-    *   Networking: `[e.g., Retrofit + OkHttp]`
-    *   Key Libraries: `[List any other crucial libraries]`
-*   **3.4. Mobile (iOS Native):**
-    *   Language: `[e.g., Swift 5.7]`
-    *   UI Toolkit: `[e.g., SwiftUI]`
-    *   Concurrency: `[e.g., Combine / Async/Await]`
-    *   Persistence: `[e.g., CoreData / Realm]`
-    *   Dependency Management: `[e.g., Swift Package Manager]`
-    *   Key Libraries: `[List any other crucial libraries]`
-*   **3.5. Mobile (Cross-Platform):**
-    *   Framework: `[e.g., Flutter 3 / React Native 0.70]`
-    *   Language: `[e.g., Dart 2.18 / TypeScript 4.8]`
-    *   State Management: `[e.g., Riverpod / Bloc / Provider / Redux Toolkit / Zustand]`
-    *   Navigation: `[e.g., go_router / React Navigation]`
-    *   Key Libraries/Packages: `[List any other crucial libraries]`
-*   **3.6. Infrastructure:**
-    *   Cloud Provider: `[e.g., AWS / GCP / Azure / None]`
-    *   Containerization: `[e.g., Docker / Kubernetes / None]`
-    *   CI/CD: `[e.g., GitHub Actions / GitLab CI / Jenkins]`
-    *   Monitoring/Logging: `[e.g., Datadog / Prometheus+Grafana / CloudWatch / Sentry]`
+```mermaid
+graph TD
+    subgraph Application Layer / Use Cases
+        Agent(CogMem Agent Facade / Executive Controller)
+        MMU(Memory Management Unit)
+        Reflection(Reflection Module)
+        Reasoning(Reasoning Engine Interface)
+        Perception(Perception Interface)
+        Action(Action Interface)
+    end
 
----
+    subgraph Domain Layer
+        CoreTypes(Core Domain Types: EntityID, AccessLevel, MemoryRecord Base)
+    end
 
-## 4. System Architecture Diagram(s)
+    subgraph Infrastructure Layer / Adapters
+        LTM_Interface[LTM Store Interface]
+        subgraph LTM Backends
+            VectorDB(Vector DB Adapter)
+            GraphDB(Graph DB Adapter)
+            KVStore(KV Store Adapter)
+            MockDB(Mock DB Adapter)
+        end
+        LLM_Client(LLM Client Adapter)
+        LuaEngine(Lua Scripting Engine)
+        ExternalTools(External Tool/API Adapters)
+    end
 
-Include high-level diagrams illustrating the overall system structure and interactions between major components (services, databases, frontend/mobile apps). Consider using the C4 model (Context, Containers, Components).
+    subgraph External Systems
+        UserApp(User Application / Agent Host)
+        LLM_Service(LLM Service API)
+        VectorDB_Service(Vector Database)
+        GraphDB_Service(Graph Database)
+        KVStore_Service(Key/Value Store)
+        LuaScripts(Lua Scripts .lua)
+    end
 
-*   **4.1. System Context Diagram (Level 1):** Shows the system in relation to its users and external systems.
-    *   `[Diagram Placeholder - e.g., using Mermaid, draw.io, PlantUML]`
-    *   *(Brief explanation of the diagram)*
-*   **4.2. Container Diagram (Level 2):** Zooms into the system boundary, showing deployable units (applications, data stores, microservices) and their interactions.
-    *   `[Diagram Placeholder]`
-    *   *(Brief explanation)*
-*   **4.3. Component Diagram (Level 3 - Optional per area):** Zooms into a specific container, showing its major internal components/modules and their relationships. This often aligns with the code structure (e.g., showing features, core modules).
-    *   `[Diagram Placeholder]`
-    *   *(Brief explanation)*
+    %% Interactions
+    UserApp --> Agent;
+    Agent --> Perception;
+    Agent --> MMU;
+    Agent --> Reasoning;
+    Agent --> Reflection;
+    Agent --> Action;
 
----
+    MMU --> LTM_Interface;
+    MMU --> LuaEngine;
+    MMU --> Reasoning; %% For summarization/structuring before LTM write
 
-## 5. Component & Module Breakdown
+    Reflection --> MMU; %% To consolidate LTM
+    Reflection --> LuaEngine;
+    Reflection --> Reasoning; %% For analysis
 
-Describe the purpose and responsibilities of the major components/modules identified in the diagrams and reflected in the project structure.
+    Reasoning --> LLM_Client;
+    Reasoning --> MMU; %% Request LTM retrieval
 
-*   **5.1. Backend Service (`backend-go` / `backend-python`):**
-    *   Responsibility: `[e.g., Handles core business logic, data persistence, API for clients]`
-    *   Key Modules/Features: `[List major features as defined in code structure]`
-*   **5.2. Web Frontend (`frontend-react`):**
-    *   Responsibility: `[e.g., Provides user interface for web users, interacts with backend API]`
-    *   Key Modules/Features: `[List major features]`
-*   **5.3. Mobile Application (`mobile-android` / `mobile-ios` / `mobile-crossplatform`):**
-    *   Responsibility: `[e.g., Provides native/cross-platform mobile experience, offline capabilities, interacts with backend API]`
-    *   Key Modules/Features: `[List major features]`
-*   **5.4. Shared/Core Libraries/Modules (`core`/`shared`/`platform`):**
-    *   Responsibility: `[e.g., Provides reusable domain models, UI components, data access utilities across features]`
+    Action --> ExternalTools;
 
----
+    LTM_Interface --> CoreTypes;
+    MMU --> CoreTypes;
+    Agent --> CoreTypes;
 
-## 6. Data Model & Schema
+    VectorDB -- Implements --> LTM_Interface;
+    GraphDB -- Implements --> LTM_Interface;
+    KVStore -- Implements --> LTM_Interface;
+    MockDB -- Implements --> LTM_Interface;
 
-*   **6.1. Database Schema:** Provide a link to detailed schema definitions or include high-level diagrams of key entities and relationships.
-    *   `[Link to Schema file / ER Diagram]`
-    *   `[Brief description of key entities]`
-*   **6.2. Data Flow:** Describe how data flows through the system for key use cases (optional).
+    VectorDB --> VectorDB_Service;
+    GraphDB --> GraphDB_Service;
+    KVStore --> KVStore_Service;
 
----
+    LuaEngine --> LuaScripts;
 
-## 7. API Design
+```
 
-*   **7.1. API Style:** `[e.g., RESTful JSON API / GraphQL / gRPC]`
-*   **7.2. API Specification:** Provide a link to the API definition file.
-    *   `[Link to OpenAPI/Swagger Specification]`
-    *   `[Link to GraphQL Schema]`
-    *   `[Link to Protobuf definitions]`
-*   **7.3. Authentication/Authorization:** How are API requests secured? (See Security section)
-*   **7.4. Versioning Strategy:** `[e.g., URI Path Versioning (/v1/), Header Versioning]`
+**Key Flows:**
+1.  **Request Handling:** User Application interacts with the `CogMem Agent Facade`. The Facade (acting as Executive Controller) receives the input and `entity_context`.
+2.  **Memory Operation:** The Controller invokes the `MMU`. The MMU, using the `entity_context`, interacts with the configured `LTM Store Interface` implementation (e.g., `VectorDB Adapter`) to retrieve or store data. LTM adapters handle communication with external databases, ensuring filtering by `entity_id` and `access_level`. Lua scripts might be invoked by the MMU for custom logic.
+3.  **Reasoning:** The Controller provides context (including retrieved LTM data) to the `Reasoning Engine Interface`. Its implementation (e.g., `LLM Client Adapter`) interacts with an external LLM.
+4.  **Reflection:** Periodically or triggered, the `Reflection Module` analyzes history (potentially via MMU reads), uses the `Reasoning Engine` for analysis, potentially invokes Lua scripts, and generates insights that trigger `MMU` consolidation actions.
 
----
+## 4. Component Breakdown (Go Packages)
 
-## 8. Infrastructure & Deployment
+The library will be organized into packages within the `pkg/` directory (intended for public use) and potentially `internal/` (for implementation details).
 
-*   **8.1. Deployment Strategy:** How will the application(s) be deployed?
-    *   `[e.g., Docker containers orchestrated by Kubernetes on AWS EKS.]`
-    *   `[e.g., Serverless functions on GCP Cloud Functions.]`
-    *   `[e.g., Mobile apps deployed via App Store Connect and Google Play Console.]`
-*   **8.2. Environments:** Describe the different deployment environments (e.g., Development, Staging, Production).
-*   **8.3. CI/CD Pipeline:** Outline the key stages of the continuous integration and deployment pipeline.
-    *   `[e.g., Build -> Test -> Lint -> Scan -> Deploy to Staging -> Manual Approval -> Deploy to Production]`
+*   **`pkg/cogmem` (or `pkg/agent`)**:
+    *   **Responsibilities:** Provides the main entry point/facade (`Agent` struct) for users of the library. Implements the Executive Controller logic. Manages the overall agent lifecycle, orchestrates module interactions, handles `entity_context` propagation.
+    *   **Key Interfaces:** Defines the primary `Agent` interface/struct.
+    *   **Dependencies:** `config`, `entity`, `mmu`, `reflection`, `reasoning`, `perception`, `action`.
 
----
+*   **`pkg/entity`**:
+    *   **Responsibilities:** Defines core types related to multi-tenancy like `EntityID`, `AccessLevel`. May contain helper functions for context management.
+    *   **Key Interfaces/Types:** `EntityID`, `AccessLevel`.
+    *   **Dependencies:** None (or only standard Go libraries).
 
-## 9. Security Considerations
+*   **`pkg/mem`**:
+    *   **Responsibilities:** Parent package for memory-related components.
+    *   **Sub-packages:**
+        *   **`pkg/mem/ltm`**:
+            *   **Responsibilities:** Defines the core LTM abstractions and provides adapters.
+            *   **Key Interfaces/Types:** `LTMStore` interface (defining CRUD operations like `Store`, `Retrieve`, `Update`, `Delete`, `Consolidate`, all requiring `entity.Context` and handling access levels), `MemoryRecord` struct (with fields for `EntityID`, `AccessLevel`, `Content`, `Metadata`, `Embedding`, etc.).
+            *   **Dependencies:** `entity`, `errors`, standard Go libraries.
+            *   **Sub-packages (`pkg/mem/ltm/adapters/`):** Contains concrete implementations of `LTMStore` for different backends (e.g., `vector/weaviate`, `graph/zep`, `kv/redis`, `mock`). These adapters handle DB-specific logic and API calls. Depend on `pkg/mem/ltm` and specific DB client libraries.
+        *   **`pkg/mem/wm`**:
+            *   **Responsibilities:** Defines interfaces and logic related to managing the conceptual Working Memory (LLM context). This might involve helper functions for formatting context strings, tracking token counts, but the actual context lives outside the library (passed to the LLM).
+            *   **Key Interfaces/Types:** `WorkingMemoryManager` interface (optional, could be handled directly by MMU/Agent).
+            *   **Dependencies:** `entity`, `mmu` (potentially).
 
-*   **9.1. Authentication:** How are users/services authenticated?
-    *   `[e.g., JWT Bearer tokens issued via login endpoint using password credentials.]`
-    *   `[e.g., OAuth 2.0 flow for third-party logins.]`
-    *   `[e.g., API Keys for service-to-service communication.]`
-*   **9.2. Authorization:** How are permissions managed?
-    *   `[e.g., Role-Based Access Control (RBAC) implemented via middleware.]`
-*   **9.3. Data Protection:** Encryption at rest/in transit, handling sensitive data (PII).
-    *   `[e.g., TLS enforced for all external communication.]`
-    *   `[e.g., Database encryption at rest enabled.]`
-*   **9.4. Common Vulnerabilities:** Measures against OWASP Top 10 (e.g., input validation, output encoding, dependency scanning).
+*   **`pkg/mmu`**:
+    *   **Responsibilities:** Implements the Memory Management Unit logic. Orchestrates reads/writes between WM conceptual space and LTM Store. Implements retrieval strategies, consolidation logic, overflow management. Integrates with Lua scripting for customization.
+    *   **Key Interfaces/Types:** `MMU` interface/struct. Defines logic for `encode_to_ltm`, `retrieve_from_ltm`, etc.
+    *   **Dependencies:** `entity`, `mem/ltm`, `mem/wm`, `scripting`, `reasoning` (for summarization/structuring), `errors`, `config`.
 
----
+*   **`pkg/reflection`**:
+    *   **Responsibilities:** Implements the self-reflection loop. Analyzes agent history/performance within an `entity_context`. Generates insights. Triggers LTM consolidation via MMU. Integrates with Lua scripting.
+    *   **Key Interfaces/Types:** `ReflectionModule` interface/struct.
+    *   **Dependencies:** `entity`, `mmu`, `reasoning`, `scripting`, `errors`, `config`.
 
-## 10. Performance & Scalability Considerations
+*   **`pkg/reasoning`**:
+    *   **Responsibilities:** Defines the interface for the reasoning engine and provides adapters.
+    *   **Key Interfaces/Types:** `ReasoningEngine` interface (e.g., `Process(context, prompt) (result, error)`).
+    *   **Dependencies:** `entity`, `errors`, `config`.
+    *   **Sub-packages (`pkg/reasoning/adapters/`):** Concrete implementations, e.g., `openai`, `anthropic`, `local_llm`. Depend on specific LLM client libraries.
 
-*   **10.1. Performance Bottlenecks:** Identify potential bottlenecks and mitigation strategies.
-    *   `[e.g., Database query optimization, caching frequently accessed data in Redis.]`
-*   **10.2. Scalability Strategy:** How will the system scale horizontally or vertically?
-    *   `[e.g., Auto-scaling groups for backend instances based on CPU/memory.]`
-    *   `[e.g., Database read replicas.]`
+*   **`pkg/perception` / `pkg/action`**:
+    *   **Responsibilities:** Define interfaces for how the agent perceives input and executes actions. Default implementations might be simple pass-throughs or basic text handling. Users typically provide their own adapters based on the application context.
+    *   **Key Interfaces/Types:** `PerceptionModule` interface, `ActionModule` interface.
+    *   **Dependencies:** `entity`, `errors`.
 
----
+*   **`pkg/scripting`**:
+    *   **Responsibilities:** Manages the embedded Lua (`gopher-lua`) interpreter. Provides functions for loading, executing, and sandboxing Lua scripts. Defines the API exposed from Go to Lua.
+    *   **Key Interfaces/Types:** `Engine` interface/struct.
+    *   **Dependencies:** `gopher-lua`, standard Go libraries.
 
-## 11. Monitoring, Logging & Alerting
+*   **`pkg/config`**:
+    *   **Responsibilities:** Defines structs for library configuration (LLM keys, DB connections, Lua paths, feature flags). Provides functions for loading configuration (e.g., from YAML/JSON using libraries like Viper).
+    *   **Dependencies:** Standard Go libraries (e.g., `os`, `encoding`), potentially `spf13/viper`.
 
-*   **11.1. Logging:** What will be logged, format, and where?
-    *   `[e.g., Structured JSON logs sent to Datadog/CloudWatch Logs.]`
-*   **11.2. Monitoring:** Key metrics to monitor (e.g., request latency, error rates, resource utilization).
-    *   `[e.g., Using Prometheus for metrics collection and Grafana for dashboards.]`
-*   **11.3. Alerting:** Critical conditions that should trigger alerts.
-    *   `[e.g., Alerting on high API error rates (>1%), high latency (>1s), low disk space.]`
+*   **`pkg/errors`**:
+    *   **Responsibilities:** Defines custom error types used throughout the library for clearer error handling and propagation.
+    *   **Dependencies:** Standard Go `errors`.
 
----
+*   **`internal/`**: Contains implementation details not meant for public consumption, e.g., specific database connection pool logic, complex query builders, internal Lua helper functions. Code here is hidden behind `pkg/` interfaces.
 
-## 12. Key Decisions & Trade-offs
+## 5. Key Architectural Patterns & Concepts
 
-Document significant architectural decisions made and the reasoning/trade-offs involved.
+*   **Layered Architecture:** As described above, separating Infrastructure (LTM Adapters, LLM Clients, Lua Engine), Application Logic (MMU, Reflection, Agent Controller), and Domain (Core Types like EntityID).
+*   **Dependency Injection (DI):** The `CogMem Agent` (or user application) will act as the Composition Root. It will be responsible for instantiating concrete implementations (like specific LTM adapters, LLM clients) and injecting them into the modules that depend on their interfaces (e.g., injecting an `LTMStore` implementation into the `MMU`). DI frameworks are not strictly required but can be used.
+*   **Interface-Based Design (Ports & Adapters):** Core logic depends on interfaces (`LTMStore`, `ReasoningEngine`). Concrete implementations (`adapters`) are provided externally. This enhances testability (mocking) and replaceability.
+*   **Context Propagation:** Go's `context.Context` can be used alongside custom `entity.Context` wrappers to propagate cancellation signals, deadlines, and crucially, the `EntityID` and potentially user-specific information throughout request handling.
+*   **Strategy Pattern:** Retrieval methods within the MMU, consolidation rules, or reflection analysis logic can be implemented using the Strategy pattern, potentially allowing selection via configuration or even Lua scripts.
 
-*   **Decision 1:** `[e.g., Chose PostgreSQL over MongoDB because...]`
-*   **Decision 2:** `[e.g., Implemented Feature X using approach Y instead of Z because...]`
-*   **Decision 3:** `[e.g., Opted for native mobile development over cross-platform because...]`
+## 6. Data Flow Example (Simplified Retrieval Request)
 
----
+1.  **UserApp -> `Agent.Process(input, entityCtx)`:** Application calls the main agent facade.
+2.  **Agent:** Stores `entityCtx`. Potentially calls `Perception` module.
+3.  **Agent -> `MMU.Retrieve(query, entityCtx, options)`:** Agent determines info is needed from LTM.
+4.  **MMU:**
+    *   Applies `entityCtx` filter parameters.
+    *   Selects retrieval strategy based on `options` or config.
+    *   *Optionally:* Invokes Lua script via `ScriptingEngine` for pre-query modification or filtering logic based on `entityCtx`.
+    *   Calls `LTMStore.Retrieve(refinedQuery, entityCtxFilter, options)` on the injected LTM adapter.
+5.  **LTM Adapter (e.g., VectorDB Adapter):**
+    *   Constructs DB-specific query (e.g., Weaviate GraphQL query) including `WHERE` clauses for `entity_id` and potentially `access_level`.
+    *   Calls external DB service.
+    *   Receives results, parses them into `[]MemoryRecord`.
+    *   Returns results to MMU.
+6.  **MMU:**
+    *   Receives `[]MemoryRecord`.
+    *   *Optionally:* Invokes Lua script via `ScriptingEngine` for post-retrieval ranking or filtering based on `entityCtx`.
+    *   Formats results for WM/Reasoning.
+    *   Returns results to Agent.
+7.  **Agent:** Adds retrieved info to the context provided to the `ReasoningEngine`.
+8.  **Agent -> `ReasoningEngine.Process(contextWithLTM, prompt)`:** Calls the LLM.
+9.  ... subsequent steps (Action, Response).
+
+## 7. Multi-Tenancy Implementation Details
+
+*   **Entity Context:** A dedicated struct (e.g., `entity.Context`) containing `EntityID` (mandatory) and potentially `UserID`, `SessionID`, access roles/tokens will be passed down the call stack, possibly embedded within Go's standard `context.Context`.
+*   **LTM Interface Enforcement:** The `LTMStore` interface methods *must* accept the `entity.Context` and implementations *must* use the `EntityID` to filter data (e.g., adding `WHERE entity_id = ?` to SQL, using tenant features in vector DBs, filtering graph traversals). Access level checks (`private_to_user` vs `shared_within_entity`) must also be implemented here, using `UserID` if available in the context.
+*   **Shared Memory:** Data marked `shared_within_entity` is retrieved if the request's `entity_context.EntityID` matches the record's `EntityID`. Writes might require specific permissions checked via the context. Concurrency control (see below) is critical here.
+
+## 8. Lua Integration Strategy
+
+*   **`pkg/scripting`:** This package encapsulates `gopher-lua`.
+*   **Engine Initialization:** A Lua state (`lua.LState`) pool might be used for concurrency. Each state needs careful initialization and sandboxing.
+*   **Sandboxing:** Disable dangerous Lua modules (`os`, `io` limited access, potentially `debug`). Use `gopher-lua` options to restrict execution time and memory usage.
+*   **Go<->Lua API:** Expose specific Go functions to Lua (e.g., `getCogMemContext()`, `logInfo()`, maybe restricted LTM read helpers). Data passed between Go and Lua needs careful type mapping (`glua.LValue`).
+*   **Invocation:** Modules like MMU and Reflection will call the `scripting.Engine` to execute specific, pre-defined Lua functions loaded from user-configured scripts, passing necessary Go data (like current context, candidate records) converted to Lua types.
+
+## 9. Concurrency Model
+
+*   **Request-Level Concurrency:** The user application hosting the CogMem library is expected to handle incoming requests concurrently (e.g., one goroutine per HTTP request).
+*   **Intra-Request Concurrency:** Within a single agent request processing flow:
+    *   I/O operations (LTMStore calls, LLM API calls) should be performed asynchronously using goroutines and channels or async patterns to avoid blocking the main processing thread.
+    *   Reflection might run in a separate background goroutine, potentially triggered by events/timers.
+    *   **Shared LTM Access:** Concurrent reads to shared memory are generally safe if adapters are stateless. Concurrent writes *require* careful handling:
+        *   **Optimistic Locking:** Use version numbers on records.
+        *   **Pessimistic Locking:** Database-level row/document locking (can cause contention).
+        *   **Conflict Resolution Logic:** Define how to handle write conflicts (e.g., last-write-wins, merge logic - potentially Lua-scriptable). The choice depends on the LTM backend and specific use case.
+
+## 10. Configuration Management
+
+*   **`pkg/config`:** Defines Go structs mirroring configuration file structure.
+*   **Loading:** Use libraries like Viper to load from YAML/JSON/env vars.
+*   **Structure:** Configuration should allow specifying:
+    *   LLM provider, model name, API keys.
+    *   LTM backend choice (e.g., "weaviate", "redis", "mock").
+    *   Connection details for chosen LTM backend(s).
+    *   Paths to Lua scripts for different modules/hooks.
+    *   Reflection settings (trigger frequency, analysis depth).
+    *   Retrieval strategy defaults and parameters.
+    *   Logging levels.
+
+## 11. Error Handling
+
+*   **Custom Errors (`pkg/errors`):** Define specific error types (e.g., `ErrLTMUnavailable`, `ErrEntityNotFound`, `ErrAccessDenied`, `ErrLuaExecutionFailed`) for better programmatic handling.
+*   **Propagation:** Errors should be propagated clearly up the call stack. Avoid swallowing errors.
+*   **Context:** Errors should include relevant context where possible (e.g., which entity ID failed, which script caused an error).
+
+## 12. Testing Strategy
+
+*   **Unit Tests:** Each package should have extensive unit tests (`_test.go` files). Dependencies on interfaces should be mocked (using GoMock, testify/mock, or manual mocks). Test individual functions and logic branches. Lua interaction points should be tested by mocking the Lua engine or testing script logic separately if possible.
+*   **Integration Tests:** Test interactions between modules (e.g., MMU interacting with a mock LTMStore). Test LTM adapters against real (but containerized/local) databases. Test Lua script execution with the actual `gopher-lua` engine but potentially mock external calls *from* Lua.
+*   **Multi-Tenancy Tests:** Specific integration tests verifying data isolation between different entity IDs and correct functioning of shared memory access (including concurrent access simulation).
+*   **End-to-End (E2E) Tests (in `cmd/` examples):** Simple example applications in `cmd/` can serve as E2E tests for basic library functionality.
+
+## 13. Deployment Considerations (as a Library)
+
+*   **Import:** Users import `pkg/cogmem` and other necessary public packages into their Go applications.
+*   **Instantiation:** The user application instantiates the `cogmem.Agent`, providing configuration and concrete implementations for required interfaces (especially LTMStore, ReasoningEngine, potentially Action/Perception).
+*   **Versioning:** Use Go modules and semantic versioning.
+*   **Dependencies:** Keep external dependencies minimal and well-justified.
+
+This architecture provides a solid foundation for building the CogMem library in Go, balancing features, performance, multi-tenancy, flexibility, and maintainability.
