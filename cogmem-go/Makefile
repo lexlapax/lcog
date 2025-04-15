@@ -41,7 +41,7 @@ test-verbose:
 
 # Run integration tests
 test-integration:
-	INTEGRATION_TESTS=true $(GO) test ./test/integration/...
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/...
 
 # Run benchmarks
 bench:

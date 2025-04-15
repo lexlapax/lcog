@@ -89,16 +89,16 @@ func (m *MockVectorStore) Delete(ctx context.Context, id string) error {
 }
 
 // GetRecord is a helper method for tests to directly access a stored record
-func (m *MockVectorStore) GetRecord(id string) *ltm.MemoryRecord {
+func (m *MockVectorStore) GetRecord(id string) ltm.MemoryRecord {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
 	record, ok := m.records[id]
 	if !ok {
-		return nil
+		return ltm.MemoryRecord{}
 	}
 	
-	return &record
+	return record
 }
 
 // GetLastQueryEmbedding returns the last query embedding that was used
