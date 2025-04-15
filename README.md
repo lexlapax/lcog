@@ -1,69 +1,9 @@
-# [Your Project Name] - Project Template
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Choose your license -->
-
-**This is a template README. Please update it for your specific project!**
-
----
-
-## Overview
-
-This repository serves as a starting template for building `[briefly describe the type of project, e.g., a full-stack application, a mobile app with backend services]`. It provides a structured foundation based on **Feature-Based Slicing** and **Layered Architecture (Onion/Clean)** principles, aiming to promote:
-
-*   **Maintainability:** Easier to understand, modify, and fix bugs.
-*   **Scalability:** Supports growing complexity and team size.
-*   **Testability:** Facilitates unit, integration, and end-to-end testing.
-*   **Flexibility:** Allows easier adaptation to new requirements or technologies.
-
----
-
-## Core Concepts & Structure
-
-The architectural philosophy guiding this template is detailed in:
-
-*   **[Project Structure Philosophy](./project-structure.md)**
-
-This template organizes code by platform first, with detailed structure guides within each platform's directory:
-
-*   `backend-go/`: Go backend service structure.
-*   `backend-python/`: Python backend service structure.
-*   `frontend-react/`: React web frontend structure.
-*   `mobile-android/`: Native Android application structure.
-*   `mobile-ios/`: Native iOS application structure.
-*   `mobile-crossplatform/`: Cross-platform (Flutter/React Native) mobile app structure.
-
----
-
-## How to Use This Template
-
-1.  **Clone/Copy:** Clone this repository or copy its contents to start your new project.
-2.  **Select Platforms:** Keep the platform directory(ies) relevant to your project (e.g., `backend-go` and `frontend-react`). Delete the others.
-3.  **Define Requirements:** Fill out the **[Product Requirements Document (PRD)](./prd.md)** template with your project's specific goals and features.
-4.  **Design Architecture:** Detail your technical choices and design in the **[Architecture Document](./architecture.md)** template, referencing the PRD and structure philosophy.
-5.  **Plan Implementation:** Break down the work into phases and outline the execution plan in the **[Implementation Plan](./implementation-plan.md)** template.
-6.  **Customize README:** **Replace the contents of this README.md** file with information specific to *your* project (see sections below).
-7.  **Develop:** Start building your features within the chosen platform structure(s), following the layered principles and implementation plan.
-
----
-
-## Key Documents
-
-*   **Project Structure Philosophy:** [./project-structure.md](./project-structure.md)
-*   **Product Requirements (Template):** [./prd.md](./prd.md) - **FILL THIS OUT!**
-*   **Architecture Document (Template):** [./architecture.md](./architecture.md) - **FILL THIS OUT!**
-*   **Implementation Plan (Template):** [./implementation-plan.md](./implementation-plan.md) - **FILL THIS OUT!**
-*   *(Add links to platform-specific readmes once chosen, e.g., [Backend README](./backend-go/readme.md))*
-
----
-
-**( !!! IMPORTANT: Delete the sections above and fill out the sections below for your actual project !!! )**
-
----
-
-# [Your Actual Project Name]
-
+# Lcog
+Cognitive / Memory system for LLMs
 <!-- Short, engaging description of your project. What does it do? Who is it for? -->
-
+Cognitive Memory in Large Language Models - [Arxiv Link] https://arxiv.org/abs/2504.02441 
+MemGPT: Towards LLMs as Operating Systems - [Arxiv Link](https://arxiv.org/abs/2310.08560)
+Zep: A Temporal Knowledge Graph Architecture for Agent Memory - [Arxiv Link](https://arxiv.org/abs/2501.13956)
 ## Table of Contents
 
 *   [Getting Started](#getting-started)
@@ -122,17 +62,6 @@ This template organizes code by platform first, with detailed structure guides w
     cd backend-go
     go run cmd/server/main.go
     ```
-*   **Frontend:**
-    ```bash
-    # Example for frontend-react
-    cd frontend-react
-    npm run dev # or yarn dev
-    ```
-*   **Mobile:**
-    ```bash
-    # Example for mobile-crossplatform (Flutter)
-    cd mobile-crossplatform
-    flutter run
     ```
     *   `[Add instructions for running on specific simulators/devices]`
 

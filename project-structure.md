@@ -49,26 +49,6 @@ this-directory/
 │   ├── project-structure.md    # project structure with details for go
 │   └── readme.md               # file that describes the sub-project  
 │   └── go-project folders      # all the subfolders and files as described in structure
-├── backend-python/
-│   ├── project-structure.md    # project structure with details for python
-│   └── readme.md               # file that describes the sub-project 
-│   └── python folders          # all the subfolders and files as described in structure
-├── frontend-react/
-│   ├── project-structure.md    # project structure with details for python
-│   └── readme.md               # file that describes the sub-project
-│   └── REACT folders           # all the subfolders and files as described in structure
-├── mobile-android/
-│   ├── project-structure.md    # project structure with details for android native app
-│   └── readme.md               # file that describes the sub-project
-│   └── android folders           # all the subfolders and files as described in structure
-├── mobile-ios/
-│   ├── project-structure.md    # project structure with details for iOS native app
-│   └── readme.md               # file that describes the sub-project
-│   └── ios folders           # all the subfolders and files as described in structure
-├── mobile-crossplatform/
-│   ├── project-structure.md    # project structure with details for web/mobile app
-│   └── readme.md               # file that describes the sub-project
-│   └── folder structure        # all the subfolders and files as described in structure
 ├── architecture.md             # Architecture template with diagrams
 ├── prd.md                      # product requirements document template
 ├── project-structure.md        # this file

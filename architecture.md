@@ -1,4 +1,4 @@
-# Architecture Document: [Your Project Name]
+# Architecture Document: LCOG
 
 **Version:** 1.0
 **Date:** [Date Created]

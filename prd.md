@@ -1,4 +1,4 @@
-# Product Requirements Document: [Your Project Name]
+# Product Requirements Document: LCOG
 
 **Version:** 1.0
 **Date:** [Date Created]
