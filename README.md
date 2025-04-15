@@ -1,9 +1,6 @@
-# Lcog
-Cognitive / Memory system for LLMs
-<!-- Short, engaging description of your project. What does it do? Who is it for? -->
-Cognitive Memory in Large Language Models - [Arxiv Link] https://arxiv.org/abs/2504.02441 
-MemGPT: Towards LLMs as Operating Systems - [Arxiv Link](https://arxiv.org/abs/2310.08560)
-Zep: A Temporal Knowledge Graph Architecture for Agent Memory - [Arxiv Link](https://arxiv.org/abs/2501.13956)
+# CogMem
+A Modular Cognitive Architecture for LLM Agents with Tiered Memory, Dynamic Processing, and Reflective Adaptation
+
 ## Table of Contents
 
 *   [Getting Started](#getting-started)
