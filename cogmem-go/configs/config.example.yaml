@@ -1,0 +1,45 @@
+# CogMem Configuration Example
+
+# LTM (Long-Term Memory) Configuration
+ltm:
+  # Type can be "sql", "kv", "vector", or "graph"
+  type: "sql"
+  
+  # SQL Backend Configuration
+  sql:
+    # Driver can be "postgres" or "sqlite"
+    driver: "postgres"
+    dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+  
+  # KV (Key-Value) Backend Configuration
+  kv:
+    # Provider can be "redis" or "postgres_hstore"
+    provider: "redis"
+    redis:
+      addr: "localhost:6379"
+      password: ""
+      db: 0
+    postgres_hstore:
+      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+
+# Scripting Configuration
+scripting:
+  # Paths to directories containing Lua scripts
+  paths:
+    - "./scripts/mmu"
+    - "./scripts/reflection"
+
+# Reasoning Engine Configuration
+reasoning:
+  # Provider can be "openai", "anthropic", or "mock"
+  provider: "mock"
+  openai:
+    api_key: "sk-your-key-here"
+    model: "gpt-4-turbo"
+  anthropic:
+    api_key: "sk-ant-your-key-here"
+    model: "claude-3-opus-20240229"
+
+# Logging Configuration
+logging:
+  level: "info"  # debug, info, warn, error

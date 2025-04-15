@@ -1,0 +1,29 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "query.sql"
+    schema: "../../../../../migrations/"
+    gen:
+      go:
+        package: "postgres"
+        out: "postgres"
+        sql_package: "pgx/v5"
+        overrides:
+          - db_type: "uuid"
+            go_type: "string"
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "pg_catalog.timestamptz"
+            go_type: "time.Time"
+  - engine: "sqlite"
+    queries: "query.sql"
+    schema: "../../../../../migrations/"
+    gen:
+      go:
+        package: "sqlite"
+        out: "sqlite"
+        overrides:
+          - db_type: "uuid"
+            go_type: "string"
+          - db_type: "timestamptz"
+            go_type: "time.Time"

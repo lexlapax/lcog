@@ -1,0 +1,2 @@
+-- Drop extensions if they were created in the up migration
+-- DROP EXTENSION IF EXISTS hstore;
