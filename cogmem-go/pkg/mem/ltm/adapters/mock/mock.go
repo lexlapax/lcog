@@ -315,3 +315,18 @@ func (m *MockStore) recordMatchesQuery(record ltm.MemoryRecord, query ltm.LTMQue
 	// If all checks pass or no checks were performed, the record matches
 	return true
 }
+
+// GetRecord retrieves a record directly by ID - helper method for tests.
+func (m *MockStore) GetRecord(id string) ltm.MemoryRecord {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	
+	for _, entityRecords := range m.records {
+		if record, exists := entityRecords[id]; exists {
+			return record
+		}
+	}
+	
+	// Return an empty record if not found
+	return ltm.MemoryRecord{}
+}
