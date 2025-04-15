@@ -4,7 +4,7 @@
 GO = go
 GOFLAGS = 
 PACKAGES = ./...
-BINDIR = ./
+BINDIR = ./bin
 MAIN_PKG = ./cmd/example-agent
 
 # Tools
