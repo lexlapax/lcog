@@ -73,7 +73,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Store and Retrieve Basic Record", func(t *testing.T) {
 		// Create a test record
 		record := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Test content for entity1",
@@ -101,7 +101,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 		// Verify retrieved record
 		retrieved := results[0]
 		assert.Equal(t, id, retrieved.ID)
-		assert.Equal(t, "entity1", retrieved.EntityID)
+		assert.Equal(t, entity.EntityID("entity1"), retrieved.EntityID)
 		assert.Equal(t, "user1", retrieved.UserID)
 		assert.Equal(t, entity.SharedWithinEntity, retrieved.AccessLevel)
 		assert.Equal(t, "Test content for entity1", retrieved.Content)
@@ -114,14 +114,14 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Entity Isolation", func(t *testing.T) {
 		// Create records for two different entities
 		record1 := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Content for entity1 only",
 		}
 
 		record2 := ltm.MemoryRecord{
-			EntityID:    "entity2",
+			EntityID:    entity.EntityID("entity2"),
 			UserID:      "user2",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Content for entity2 only",
@@ -159,7 +159,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Access Level Control", func(t *testing.T) {
 		// Create a shared record
 		sharedRecord := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Shared content within entity1",
@@ -167,7 +167,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 
 		// Create a private record
 		privateRecord := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.PrivateToUser,
 			Content:     "Private content for user1 only",
@@ -214,19 +214,19 @@ func TestSQLiteLTMOperations(t *testing.T) {
 		// Create records with different text content
 		records := []ltm.MemoryRecord{
 			{
-				EntityID:    "entity1",
+				EntityID:    entity.EntityID("entity1"),
 				UserID:      "user1",
 				AccessLevel: entity.SharedWithinEntity,
 				Content:     "Apple pie recipe",
 			},
 			{
-				EntityID:    "entity1",
+				EntityID:    entity.EntityID("entity1"),
 				UserID:      "user1",
 				AccessLevel: entity.SharedWithinEntity,
 				Content:     "Banana bread recipe",
 			},
 			{
-				EntityID:    "entity1",
+				EntityID:    entity.EntityID("entity1"),
 				UserID:      "user1",
 				AccessLevel: entity.SharedWithinEntity,
 				Content:     "Cherry cake recipe",
@@ -268,7 +268,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Update Record", func(t *testing.T) {
 		// Create a record
 		record := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Original content",
@@ -284,7 +284,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 		// Update the record
 		updatedRecord := ltm.MemoryRecord{
 			ID:          id,
-			EntityID:    "entity1", // Must match original
+			EntityID:    entity.EntityID("entity1"), // Must match original
 			Content:     "Updated content",
 			Metadata: map[string]interface{}{
 				"version": 2,
@@ -320,7 +320,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Delete Record", func(t *testing.T) {
 		// Create a record
 		record := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Content to be deleted",
@@ -357,7 +357,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 	t.Run("Cross-Entity Operations", func(t *testing.T) {
 		// Try to store a record with mismatched entity IDs
 		record := ltm.MemoryRecord{
-			EntityID:    "entity2", // Different from context
+			EntityID:    entity.EntityID("entity2"), // Different from context
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Content with mismatched entity",
@@ -369,7 +369,7 @@ func TestSQLiteLTMOperations(t *testing.T) {
 
 		// Create a valid record for entity1
 		validRecord := ltm.MemoryRecord{
-			EntityID:    "entity1",
+			EntityID:    entity.EntityID("entity1"),
 			UserID:      "user1",
 			AccessLevel: entity.SharedWithinEntity,
 			Content:     "Valid content",
