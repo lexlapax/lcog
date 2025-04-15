@@ -148,7 +148,7 @@ func TestAgent_Process_Store_Error(t *testing.T) {
 
 func TestAgent_Process_Retrieve(t *testing.T) {
 	// Setup
-	agent, mockMMU, mockReasoning, _, ctx := setupAgentTest(t)
+	agent, mockMMU, _, _, ctx := setupAgentTest(t)
 
 	// Create some mock memory records
 	mockRecords := []ltm.MemoryRecord{
@@ -165,17 +165,19 @@ func TestAgent_Process_Retrieve(t *testing.T) {
 	// Set up MMU expectation
 	mockMMU.On("RetrieveFromLTM", ctx, "test query", mock.Anything).Return(mockRecords, nil)
 
-	// Set up reasoning expectation for summarization
-	mockReasoning.On("Process", ctx, mock.Anything).Return("Memory retrieval summary", nil)
+	// No longer use reasoning for retrieval - we display the memories directly
 
 	// Test retrieve operation
 	result, err := agent.Process(ctx, InputTypeRetrieve, "test query")
 	require.NoError(t, err)
-	assert.Equal(t, "Memory retrieval summary", result)
+	
+	// Check that the result contains the expected content
+	assert.Contains(t, result, "Found 2 memories")
+	assert.Contains(t, result, "First memory")
+	assert.Contains(t, result, "Second memory")
 
-	// Verify the mocks were called as expected
+	// Verify the MMU mock was called as expected
 	mockMMU.AssertExpectations(t)
-	mockReasoning.AssertExpectations(t)
 }
 
 func TestAgent_Process_Retrieve_NoResults(t *testing.T) {

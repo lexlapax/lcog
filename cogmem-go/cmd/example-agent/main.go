@@ -55,8 +55,7 @@ CogMem Example Agent - Command Reference:
 Notes:
 - Regular text input is treated as a query
 - Tab completion is available for commands
-- Use up/down arrows for command history
-`
+- Use up/down arrows for command history`
 
 // historyFile is the file where command history is stored
 const historyFile = ".cogmem_history"
@@ -540,7 +539,6 @@ func runCLI(agentInstance *agent.AgentI, cfg *config.Config) {
 				fmt.Printf("Log Level: %s\n", cfg.Logging.Level)
 				fmt.Printf("Entity: %s\n", currentEntity)
 				fmt.Printf("User: %s\n", currentUser)
-				fmt.Println()
 
 			default:
 				fmt.Printf("Unknown command: %s\nType !help for available commands.\n", cmd)
