@@ -24,6 +24,7 @@ build:
 
 # Build and install example agent
 install: 
+	mkdir -p $(BINDIR)
 	$(GO) build $(GOFLAGS) $(BUILD_FLAGS) -o $(BINDIR)/example-agent $(MAIN_PKG)
 
 # Run the example agent
@@ -72,8 +73,11 @@ dev-db-down:
 
 # Clean build artifacts
 clean:
-	rm -rf $(BINDIR)/*
-	$(GO) clean
+	rm -f $(BINDIR)/example-agent
+	rm -f $(BINDIR)/*.o $(BINDIR)/*.a
+	find . -name "*.test" -delete
+	find . -name "*.out" -delete
+	$(GO) clean -cache -testcache
 
 # Show help
 help:
@@ -91,5 +95,5 @@ help:
 	@echo "  deps            - Install dependencies"
 	@echo "  dev-db-up       - Start development databases"
 	@echo "  dev-db-down     - Stop development databases"
-	@echo "  clean           - Clean build artifacts"
+	@echo "  clean           - Clean binary artifacts, test files, and Go caches"
 	@echo "  help            - Show this help message"
