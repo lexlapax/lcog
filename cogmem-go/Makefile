@@ -5,7 +5,7 @@ GO = go
 GOFLAGS = 
 PACKAGES = ./...
 BINDIR = ./bin
-MAIN_PKG = ./cmd/example-agent
+MAIN_PKG = ./cmd/example-client
 
 # Tools
 GOLINT = golangci-lint
@@ -22,12 +22,12 @@ all: build
 build:
 	$(GO) build $(GOFLAGS) $(BUILD_FLAGS) $(PACKAGES)
 
-# Build and install example agent
+# Build and install example client
 install: 
 	mkdir -p $(BINDIR)
-	$(GO) build $(GOFLAGS) $(BUILD_FLAGS) -o $(BINDIR)/example-agent $(MAIN_PKG)
+	$(GO) build $(GOFLAGS) $(BUILD_FLAGS) -o $(BINDIR)/example-client $(MAIN_PKG)
 
-# Run the example agent
+# Run the example client
 run:
 	$(GO) run $(MAIN_PKG)/main.go
 
@@ -73,7 +73,7 @@ dev-db-down:
 
 # Clean build artifacts
 clean:
-	rm -f $(BINDIR)/example-agent
+	rm -f $(BINDIR)/example-client
 	rm -f $(BINDIR)/*.o $(BINDIR)/*.a
 	find . -name "*.test" -delete
 	find . -name "*.out" -delete
@@ -83,8 +83,8 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  build           - Build all packages"
-	@echo "  install         - Build and install example agent"
-	@echo "  run             - Run the example agent"
+	@echo "  install         - Build and install example client"
+	@echo "  run             - Run the example client"
 	@echo "  test            - Run unit tests"
 	@echo "  test-verbose    - Run unit tests with verbose output"
 	@echo "  test-integration - Run integration tests"

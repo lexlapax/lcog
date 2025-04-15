@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lexlapax/cogmem/pkg/agent"
 	"github.com/lexlapax/cogmem/pkg/cogmem"
 	"github.com/lexlapax/cogmem/pkg/entity"
 	ltmmock "github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/mock"
@@ -226,38 +225,3 @@ func TestCogMemClientIntegration(t *testing.T) {
 	})
 }
 
-// TestCompatibilityLayer ensures that the agent compatibility layer works correctly
-func TestCompatibilityLayer(t *testing.T) {
-	// Skip if not running integration tests
-	if os.Getenv("INTEGRATION_TESTS") != "true" {
-		t.Skip("Skipping integration test; set INTEGRATION_TESTS=true to run")
-	}
-
-	// Create a simple test with both the old and new APIs
-	ltmStore := ltmmock.NewMockStore()
-	mockReasoning := reasoningmock.NewMockEngine()
-	mockReasoning.AddResponse("Please answer this question: test", "Test response")
-	
-	scriptEngine, err := scripting.NewLuaEngine(scripting.DefaultConfig())
-	require.NoError(t, err)
-	defer scriptEngine.Close()
-
-	mmuInstance := mmu.NewMMU(ltmStore, mockReasoning, scriptEngine, mmu.DefaultConfig())
-
-	// Create context
-	entityCtx := entity.NewContext("test-entity", "test-user")
-	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-
-	// Create both clients
-	clientDirect := cogmem.NewCogMemClient(mmuInstance, mockReasoning, scriptEngine, cogmem.DefaultConfig())
-	clientCompat := agent.NewAgent(mmuInstance, mockReasoning, scriptEngine, agent.DefaultConfig())
-
-	// Test both
-	responseDirect, err := clientDirect.Process(ctx, cogmem.InputTypeQuery, "test")
-	require.NoError(t, err)
-	
-	responseCompat, err := clientCompat.Process(ctx, agent.InputTypeQuery, "test")
-	require.NoError(t, err)
-	
-	assert.Equal(t, responseDirect, responseCompat, "Direct and compatibility clients should return the same response")
-}
