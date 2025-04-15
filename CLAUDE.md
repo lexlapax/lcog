@@ -47,3 +47,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Lua Integration**: Sandbox all Lua scripts, handle script errors gracefully
 - **Entity Context**: Always propagate entity context through the entire call stack
 - **Migrations**: Use SQL migrations for database schema changes (in migrations/)
+- **Security & Secrets**: 
+  - Never hardcode secrets (API keys, passwords, etc.) in committed files
+  - Use environment variables or .env files for secrets management
+  - Add secrets-containing files to .gitignore
+  - Use example files (e.g., .env.example) with placeholders to document required variables
