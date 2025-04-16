@@ -1,0 +1,113 @@
+# CogMem Configuration with Complete PostgreSQL Backend
+# Uses PostgreSQL for all three storage types: KV (HStore), SQL, and Vector (pgvector)
+
+# Logging Configuration
+log:
+  level: "debug"
+  format: "text"
+
+# LTM (Long-Term Memory) Configuration
+ltm:
+  # Primary LTM backend - choose one of the three PostgreSQL options
+  # Options: "kv" (for HStore), "sqlstore", or "pgvector"
+  type: "pgvector"
+  
+  # PostgreSQL KV Store (HStore) Configuration
+  kv:
+    provider: "postgres_hstore"
+    postgres_hstore:
+      # Connection string (using environment variable)
+      dsn: "${POSTGRES_URL}"
+      # Table name for HStore records
+      table_name: "memory_records_hstore"
+  
+  # PostgreSQL SQL Store Configuration  
+  sqlstore:
+    driver: "postgres"
+    # Connection string (using environment variable)
+    dsn: "${POSTGRES_URL}"
+    # Table name for SQL records
+    table_name: "memory_records"
+  
+  # PostgreSQL pgvector Configuration
+  pgvector:
+    # Connection string (using environment variable)
+    connection_string: "${POSTGRES_URL}"
+    # Table name for vector records
+    table_name: "memory_vectors"
+    # Dimensions of the vector embeddings
+    dimensions: 1536
+    # Distance metric for similarity search (cosine, euclidean, dot)
+    distance_metric: "cosine"
+
+# Scripting Configuration
+scripting:
+  # Paths to directories containing Lua scripts
+  paths:
+    - "./scripts/mmu"
+    - "./scripts/reflection"
+  # Scripting engine settings
+  engine:
+    enable_sandboxing: true
+    script_timeout_ms: 1000
+    max_memory_mb: 100
+
+# MMU (Memory Management Unit) Configuration
+mmu:
+  # Enable Lua hooks for memory operations
+  enable_lua_hooks: true
+  # Hook scripts for various memory operations
+  hooks:
+    # Script for customizing memory operations
+    custom: "./scripts/mmu/custom_hooks.lua"
+    # Script for embedding generation
+    embedding: "./scripts/mmu/embedding_hooks.lua"
+    # Script for filtering memory retrieval
+    retrieval_filter: "./scripts/mmu/retrieval_filter.lua"
+  # Retrieval configuration
+  retrieval:
+    max_results: 10
+    similarity_threshold: 0.7
+  # Embeddings configuration
+  embeddings:
+    enabled: true
+
+# Reasoning Engine Configuration
+reasoning:
+  # Use OpenAI for reasoning and embeddings
+  provider: "openai"
+  # OpenAI configuration
+  openai:
+    # OpenAI API key (from environment variable)
+    api_key: "${OPENAI_API_KEY}"
+    # Model to use for chat/completion
+    model: "gpt-4"
+    # Model to use for embedding generation
+    embedding_model: "text-embedding-3-small"
+    # Maximum tokens to generate
+    max_tokens: 1000
+    # Temperature controls randomness (0.0-1.0)
+    temperature: 0.7
+
+# Reflection Configuration
+reflection:
+  # Enable reflection process
+  enabled: true
+  # Number of interactions between reflection cycles
+  trigger_frequency: 10
+  # Maximum number of memories to analyze
+  max_memories_to_analyze: 50
+  # Model to use for analysis (empty uses default reasoning model)
+  analysis_model: ""
+  # Temperature for analysis (lower for more focus)
+  analysis_temperature: 0.3
+
+# Database setup instructions:
+# 1. Create a PostgreSQL database for CogMem
+# 2. Enable required extensions:
+#    - CREATE EXTENSION IF NOT EXISTS hstore;  (for KV store)
+#    - CREATE EXTENSION IF NOT EXISTS vector;  (for pgvector)
+# 3. Set POSTGRES_URL environment variable:
+#    export POSTGRES_URL="postgres://username:password@localhost:5432/cogmem?sslmode=disable"
+# 4. Set OPENAI_API_KEY environment variable:
+#    export OPENAI_API_KEY="your-api-key-here"

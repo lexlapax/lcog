@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
 	"github.com/peterh/liner"
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -81,7 +80,6 @@ const historyFile = ".cogmem_history"
 func main() {
 	// Parse command-line flags
 	configPath := flag.String("config", "", "Path to configuration file")
-	usePgVector := flag.Bool("use-pgvector", false, "Force pgvector mode")
 	flag.Parse()
 	
 	// Initialize logger
@@ -100,15 +98,7 @@ func main() {
 	}
 
 	// Initialize LTM store based on configuration
-	var ltmStore ltm.LTMStore
-	
-	if *usePgVector {
-		log.Info("Forced pgvector mode enabled")
-		ltmStore, err = initPgVectorStore(cfg)
-	} else {
-		ltmStore, err = initLTMStore(cfg)
-	}
-	
+	ltmStore, err := initLTMStore(cfg)
 	if err != nil {
 		log.Error("Failed to initialize LTM store", "error", err)
 		os.Exit(1)
@@ -159,15 +149,12 @@ func loadConfig(customPath string) (*config.Config, error) {
 	var cfg *config.Config
 	var err error
 	
-	// Load configuration
-	
 	// If a custom path is provided, try to load from there first
 	if customPath != "" {
 		if _, statErr := os.Stat(customPath); statErr == nil {
 			log.Info("Loading configuration from specified path", "path", customPath)
 			cfg, err = config.LoadFromFile(customPath)
 			if err == nil {
-				// Configuration loaded successfully
 				return cfg, nil
 			}
 			log.Warn("Failed to load config from specified path", "path", customPath, "error", err)
@@ -253,10 +240,6 @@ func loadConfig(customPath string) (*config.Config, error) {
 func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 	ltmType := strings.ToLower(cfg.LTM.Type)
 	log.Info("Initializing LTM store", "type", ltmType)
-	// Special case for pgvector
-	if ltmType == "pgvector" {
-		return initPgVectorStore(cfg)
-	}
 
 	switch ltmType {
 	case "mock", "":
@@ -314,17 +297,15 @@ func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 			}
 
 			log.Info("Using PostgreSQL SQL store")
-
-			// Need to use pgxpool for PostgreSQL SQLStore
-			log.Info("Creating pgxpool for PostgreSQL SQL store")
-			ctx := context.Background()
-			pool, err := pgxpool.New(ctx, dsn)
+			db, err := sqlx.Connect("postgres", dsn)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
+				return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 			}
+
+			// Create the store
+			store := sqlstorePostgres.NewPostgresStore(db)
 			
-			// Create the store with pgxpool
-			store := sqlstorePostgres.NewPostgresStore(pool)
+			// No Initialize method for PostgreSQL store, tables must exist
 
 			return store, nil
 		}
@@ -373,9 +354,11 @@ func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 			// Create the store
 			store := postgres.NewHstoreStore(db)
 			
-			// Use custom table name if provided in code since there's no TableName field in config
-			// Default to memory_records_hstore
-			store.WithTableName("memory_records_hstore")
+			// Use custom table name if provided
+			tableName := cfg.LTM.KV.PostgresHStore.TableName
+			if tableName != "" {
+				store.WithTableName(tableName)
+			}
 			
 			// Initialize the store (enable hstore extension if needed)
 			if err := store.Initialize(context.Background()); err != nil {
@@ -422,72 +405,60 @@ func initLTMStore(cfg *config.Config) (ltm.LTMStore, error) {
 		
 		return chromemAdapter, nil
 		
-	// This case is now handled separately through the initPgVectorStore function
-	// to avoid any issues with case matching
+	case "pgvector":
+		// Initialize PostgreSQL pgvector store
+		log.Info("Initializing PostgreSQL pgvector store")
+		
+		// Get configuration parameters
+		connectionString := cfg.LTM.PgVector.ConnectionString
+		if connectionString == "" {
+			// Try to get it from environment
+			connectionString = os.Getenv("POSTGRES_URL")
+			if connectionString == "" {
+				return nil, fmt.Errorf("PostgreSQL connection string not provided")
+			}
+		}
+		
+		tableName := cfg.LTM.PgVector.TableName
+		if tableName == "" {
+			tableName = "memory_vectors" // Default
+		}
+		
+		dimensions := cfg.LTM.PgVector.Dimensions
+		if dimensions == 0 {
+			dimensions = 1536 // Default for OpenAI embeddings
+		}
+		
+		distanceMetric := cfg.LTM.PgVector.DistanceMetric
+		if distanceMetric == "" {
+			distanceMetric = "cosine" // Default
+		}
+		
+		// Create pgvector configuration
+		pgvectorConfig := pgvector.PgvectorConfig{
+			ConnectionString: connectionString,
+			TableName:        tableName,
+			DimensionSize:    dimensions,
+			DistanceMetric:   distanceMetric,
+		}
+		
+		log.Info("Using PostgreSQL pgvector store", 
+			"table", tableName,
+			"dimensions", dimensions,
+			"distance_metric", distanceMetric)
+		
+		// Create the adapter
+		ctx := context.Background()
+		pgvectorAdapter, err := pgvector.NewPgvectorAdapter(ctx, pgvectorConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pgvector adapter: %w", err)
+		}
+		
+		return pgvectorAdapter, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported LTM store type: %s", ltmType)
 	}
-}
-
-// initPgVectorStore initializes the PostgreSQL pgvector store
-func initPgVectorStore(cfg *config.Config) (ltm.LTMStore, error) {
-	log.Info("Initializing PostgreSQL pgvector store")
-	
-	// Get configuration parameters
-	connectionString := cfg.LTM.PgVector.ConnectionString
-	
-	// Environment variable substitution
-	if strings.Contains(connectionString, "${POSTGRES_URL}") {
-		connectionString = strings.Replace(connectionString, "${POSTGRES_URL}", os.Getenv("POSTGRES_URL"), 1)
-	}
-	
-	if connectionString == "" {
-		// Try to get it from environment
-		connectionString = os.Getenv("POSTGRES_URL")
-		if connectionString == "" {
-			return nil, fmt.Errorf("PostgreSQL connection string not provided")
-		}
-	}
-	
-	log.Debug("Using PostgreSQL connection string", "connection_string", connectionString)
-	
-	tableName := cfg.LTM.PgVector.TableName
-	if tableName == "" {
-		tableName = "memory_vectors" // Default
-	}
-	
-	dimensions := cfg.LTM.PgVector.Dimensions
-	if dimensions == 0 {
-		dimensions = 1536 // Default for OpenAI embeddings
-	}
-	
-	distanceMetric := cfg.LTM.PgVector.DistanceMetric
-	if distanceMetric == "" {
-		distanceMetric = "cosine" // Default
-	}
-	
-	// Create pgvector configuration
-	pgvectorConfig := pgvector.PgvectorConfig{
-		ConnectionString: connectionString,
-		TableName:        tableName,
-		DimensionSize:    dimensions,
-		DistanceMetric:   distanceMetric,
-	}
-	
-	log.Info("Using PostgreSQL pgvector store", 
-		"table", tableName,
-		"dimensions", dimensions,
-		"distance_metric", distanceMetric)
-	
-	// Create the adapter
-	ctx := context.Background()
-	pgvectorAdapter, err := pgvector.NewPgvectorAdapter(ctx, pgvectorConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pgvector adapter: %w", err)
-	}
-	
-	return pgvectorAdapter, nil
 }
 
 // initScriptEngine initializes the Lua scripting engine
@@ -856,9 +827,6 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 					fmt.Printf("ChromemGo URL: %s\n", cfg.LTM.ChromemGo.URL)
 					fmt.Printf("ChromemGo Collection: %s\n", cfg.LTM.ChromemGo.Collection)
 				}
-						if cfg.LTM.KV.Provider == "postgres_hstore" {
-							fmt.Printf("PostgreSQL HStore (using table: memory_records_hstore)\n")
-						}
 				
 				fmt.Printf("\nReasoning Provider: %s\n", cfg.Reasoning.Provider)
 				if cfg.Reasoning.Provider == "openai" {

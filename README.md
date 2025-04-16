@@ -142,7 +142,7 @@ You can configure the CogMem library by creating a `config.yaml` file in the cur
 
 - `config.example.yaml` - General example with all options
 - `chromemgo.yaml` - Configuration for using Chromem-go vector database
-- `pgvector.yaml` - Configuration for using PostgreSQL with pgvector extension
+- `postgres.yaml` - Comprehensive configuration using PostgreSQL for all storage backends (KV, SQL, and Vector)
 
 #### Vector LTM Configuration
 
@@ -161,7 +161,35 @@ ltm:
 ltm:
   type: "pgvector"
   pgvector:
-    connection_string: "${PGVECTOR_URL}"
+    connection_string: "${POSTGRES_URL}"
+    table_name: "memory_vectors"
+    dimensions: 1536
+    distance_metric: "cosine"
+```
+
+#### Complete PostgreSQL Configuration (KV, SQL, and Vector)
+
+```yaml
+# PostgreSQL as primary LTM (with pgvector)
+ltm:
+  type: "pgvector"
+  
+  # PostgreSQL KV Store (HStore)
+  kv:
+    provider: "postgres_hstore"
+    postgres_hstore:
+      dsn: "${POSTGRES_URL}"
+      table_name: "memory_records_hstore"
+  
+  # PostgreSQL SQL Store 
+  sqlstore:
+    driver: "postgres"
+    dsn: "${POSTGRES_URL}"
+    table_name: "memory_records"
+  
+  # PostgreSQL pgvector
+  pgvector:
+    connection_string: "${POSTGRES_URL}"
     table_name: "memory_vectors"
     dimensions: 1536
     distance_metric: "cosine"
@@ -193,18 +221,32 @@ reflection:
 
 ### Database Setup
 
-For PostgreSQL with pgvector:
+#### Using PostgreSQL for All Stores (KV, SQL, and Vector)
 
 ```bash
 # Start development databases
 cd cogmem-go
 make dev-db-up
 
+# Create application database
+docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem;"
+
+# Enable required extensions
+docker exec -it cogmem_postgres psql -U postgres -d cogmem -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+docker exec -it cogmem_postgres psql -U postgres -d cogmem -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# Set environment variables
+export POSTGRES_URL="postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+export OPENAI_API_KEY="your-api-key-here"
+
 # Create test database for integration tests
 docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem_test;"
+docker exec -it cogmem_postgres psql -U postgres -d cogmem_test -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+docker exec -it cogmem_postgres psql -U postgres -d cogmem_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-# Drop test database when needed
+# Drop databases when needed
 docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem_test;"
+docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem;"
 
 # Stop development databases
 make dev-db-down
