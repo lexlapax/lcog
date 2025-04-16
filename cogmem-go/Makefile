@@ -14,7 +14,7 @@ SQLC = sqlc
 # Build flags
 BUILD_FLAGS = -v
 
-.PHONY: all build clean test test-verbose test-integration lint fmt sqlc-gen help deps
+.PHONY: all build clean test test-verbose test-integration lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
 
 all: build
 
@@ -38,6 +38,17 @@ test:
 # Run tests with verbose output
 test-verbose:
 	$(GO) test -v $(PACKAGES)
+
+# Create test database for integration tests
+create-test-db:
+	docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem_test;"
+
+# Drop test database
+drop-test-db:
+	docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem_test;"
+
+# Set up test database (start postgres and create test db)
+test-db-setup: dev-db-up create-test-db
 
 # Run integration tests
 test-integration:
@@ -87,6 +98,9 @@ help:
 	@echo "  run             - Run the example client"
 	@echo "  test            - Run unit tests"
 	@echo "  test-verbose    - Run unit tests with verbose output"
+	@echo "  create-test-db  - Create test database for integration tests"
+	@echo "  drop-test-db    - Drop test database"
+	@echo "  test-db-setup   - Start database and create test database"
 	@echo "  test-integration - Run integration tests"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"

@@ -184,6 +184,12 @@ For PostgreSQL with pgvector:
 cd cogmem-go
 make dev-db-up
 
+# Create test database for integration tests
+docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem_test;"
+
+# Drop test database when needed
+docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem_test;"
+
 # Stop development databases
 make dev-db-down
 ```
@@ -330,8 +336,16 @@ make test
 # Run tests with verbose output
 make test-verbose
 
+# Prepare for integration tests
+make dev-db-up
+docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem_test;"
+
 # Run integration tests
 make test-integration
+
+# Clean up after integration tests
+docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem_test;"
+make dev-db-down
 
 # Run benchmarks
 make bench
