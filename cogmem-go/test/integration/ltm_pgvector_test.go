@@ -1,4 +1,6 @@
-// test/integration/ltm_pgvector_test.go
+//go:build integration
+// +build integration
+
 package integration
 
 import (
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm/adapters/vector/pgvector"
@@ -16,33 +19,48 @@ import (
 )
 
 func TestPgVectorLTMIntegration(t *testing.T) {
-	// Skip this test as requested
-	t.Skip("Skipping PgVector integration test as requested")
-	
 	// Skip this test if not running in integration test mode
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test; set INTEGRATION_TESTS=true to run")
 	}
 
-	// Skip if no PgVector URL
+	// Get database connection string from environment variable or use default
 	pgvectorURL := os.Getenv("PGVECTOR_TEST_URL")
 	if pgvectorURL == "" {
-		t.Skip("Skipping pgvector test; PGVECTOR_TEST_URL environment variable not set")
+		pgvectorURL = os.Getenv("TEST_DB_URL")
+		if pgvectorURL == "" {
+			pgvectorURL = "postgres://postgres:postgres@localhost:5432/cogmem_test?sslmode=disable"
+		}
 	}
 
 	// Create a random table name for tests to avoid conflicts
 	tableName := "test_" + uuid.New().String()[:8]
 
+	// Set up a temporary connection to create the pgvector extension
+	tempConfig, err := pgxpool.ParseConfig(pgvectorURL)
+	require.NoError(t, err, "Failed to parse connection string")
+	
+	tempCtx, tempCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer tempCancel()
+	
+	tempPool, err := pgxpool.NewWithConfig(tempCtx, tempConfig)
+	require.NoError(t, err, "Failed to create connection pool")
+	defer tempPool.Close()
+	
+	// Enable pgvector extension if not already enabled
+	_, err = tempPool.Exec(tempCtx, "CREATE EXTENSION IF NOT EXISTS vector")
+	require.NoError(t, err, "Failed to enable vector extension")
+	
 	// Set up the adapter
 	ctx := context.Background()
-	config := pgvector.PgvectorConfig{
+	pgConfig := pgvector.PgvectorConfig{
 		ConnectionString: pgvectorURL,
 		TableName:        tableName,
 		DimensionSize:    5, // Small dimension for tests
 		DistanceMetric:   "cosine",
 	}
 
-	adapter, err := pgvector.NewPgvectorAdapter(ctx, config)
+	adapter, err := pgvector.NewPgvectorAdapter(ctx, pgConfig)
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 

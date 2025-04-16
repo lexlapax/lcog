@@ -13,6 +13,22 @@ CogMem is a Go library that implements a cognitive architecture for LLM agents, 
 - Structured reflection and adaptation capabilities
 - Semantic search with vector embeddings (RAG)
 
+## Features
+
+- **Multiple Storage Backends**: Support for various storage technologies
+  - Key-Value stores: BoltDB, Redis, PostgreSQL HStore
+  - SQL stores: SQLite, PostgreSQL
+  - Vector stores: Chromem-go, PostgreSQL pgvector
+  - Future: Graph stores
+
+- **Entity Isolation**: Multi-tenant design with strong isolation between entities
+
+- **Access Control**: Private and shared memory support within entities
+
+- **Lua Scripting**: Extensible with Lua for custom memory processing
+
+- **Reasoning Engine**: Integrate with LLMs and other reasoning systems
+
 ## Project Status
 
 This project is currently in Phase 2 of development, which is now complete. Phase 2 implemented:
@@ -208,6 +224,10 @@ Feature Documentation:
 * **RAG (Retrieval-Augmented Generation):** [./docs/rag.md](./docs/rag.md)
 * **Reflection Module:** [./docs/reflection.md](./docs/reflection.md)
 
+Development & Testing:
+
+* **PostgreSQL Testing:** [./docs/POSTGRES_TESTING.md](./docs/POSTGRES_TESTING.md)
+
 ## Core Components
 
 ### Entity Context
@@ -342,6 +362,9 @@ docker exec -it cogmem_postgres psql -U postgres -c "CREATE DATABASE cogmem_test
 
 # Run integration tests
 make test-integration
+
+# Run PostgreSQL-specific tests (HStore, SQLStore, and PgVector)
+make test-postgres
 
 # Clean up after integration tests
 docker exec -it cogmem_postgres psql -U postgres -c "DROP DATABASE cogmem_test;"

@@ -20,17 +20,25 @@ import (
 
 // HstoreStore implements the LTMStore interface using PostgreSQL with hstore extension.
 type HstoreStore struct {
-	db *sqlx.DB
+	db        *sqlx.DB
+	tableName string
 }
 
 // NewHstoreStore creates a new PostgreSQL HstoreStore with the given database connection.
 func NewHstoreStore(db *sqlx.DB) *HstoreStore {
 	store := &HstoreStore{
-		db: db,
+		db:        db,
+		tableName: "memory_records",
 	}
 
 	log.Debug("Initialized PostgreSQL Hstore LTM store adapter")
 	return store
+}
+
+// WithTableName sets a custom table name for the HstoreStore.
+func (h *HstoreStore) WithTableName(tableName string) *HstoreStore {
+	h.tableName = tableName
+	return h
 }
 
 // Initialize creates the required tables if they don't exist.
@@ -47,8 +55,8 @@ func (h *HstoreStore) Initialize(ctx context.Context) error {
 	}
 
 	// Create the memory_records table if it doesn't exist
-	_, err = h.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS memory_records (
+	_, err = h.db.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
 			entity_id TEXT NOT NULL,
 			user_id TEXT,
@@ -58,16 +66,16 @@ func (h *HstoreStore) Initialize(ctx context.Context) error {
 			created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 			updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 		);
-	`)
+	`, h.tableName))
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to create memory_records table", "error", err)
 		return fmt.Errorf("failed to create memory_records table: %w", err)
 	}
 
 	// Create index on entity_id for faster lookups
-	_, err = h.db.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS memory_records_entity_id_idx ON memory_records (entity_id);
-	`)
+	_, err = h.db.ExecContext(ctx, fmt.Sprintf(`
+		CREATE INDEX IF NOT EXISTS %s_entity_id_idx ON %s (entity_id);
+	`, h.tableName, h.tableName))
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to create entity_id index", "error", err)
 		return fmt.Errorf("failed to create entity_id index: %w", err)
@@ -126,8 +134,8 @@ func (h *HstoreStore) Store(ctx context.Context, record ltm.MemoryRecord) (strin
 	}
 
 	// Store the record in the database
-	query := `
-		INSERT INTO memory_records (
+	query := fmt.Sprintf(`
+		INSERT INTO %s (
 			id, entity_id, user_id, access_level, content, metadata, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6::hstore, $7, $8
@@ -136,7 +144,7 @@ func (h *HstoreStore) Store(ctx context.Context, record ltm.MemoryRecord) (strin
 			metadata = EXCLUDED.metadata,
 			updated_at = EXCLUDED.updated_at
 		RETURNING id
-	`
+	`, h.tableName)
 
 	var id string
 	err = h.db.QueryRowContext(ctx, query,
@@ -166,11 +174,11 @@ func (h *HstoreStore) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]ltm.M
 	}
 
 	// Build the SQL query
-	sqlQuery := `
+	sqlQuery := fmt.Sprintf(`
 		SELECT id, entity_id, user_id, access_level, content, metadata, created_at, updated_at
-		FROM memory_records
+		FROM %s
 		WHERE entity_id = $1
-	`
+	`, h.tableName)
 
 	args := []interface{}{string(entityCtx.EntityID)}
 	argIdx := 2
@@ -302,9 +310,9 @@ func (h *HstoreStore) Update(ctx context.Context, record ltm.MemoryRecord) error
 
 	// First check if the record exists and belongs to the entity
 	var existingEntityID string
-	err := h.db.QueryRowContext(ctx, `
-		SELECT entity_id FROM memory_records WHERE id = $1
-	`, record.ID).Scan(&existingEntityID)
+	err := h.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT entity_id FROM %s WHERE id = $1
+	`, h.tableName), record.ID).Scan(&existingEntityID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -335,13 +343,13 @@ func (h *HstoreStore) Update(ctx context.Context, record ltm.MemoryRecord) error
 
 	// Update the record
 	now := time.Now().UTC()
-	_, err = h.db.ExecContext(ctx, `
-		UPDATE memory_records SET
+	_, err = h.db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s SET
 			content = $1,
 			metadata = $2::hstore,
 			updated_at = $3
 		WHERE id = $4 AND entity_id = $5
-	`, record.Content, hstoreStr, now, record.ID, string(entityCtx.EntityID))
+	`, h.tableName), record.Content, hstoreStr, now, record.ID, string(entityCtx.EntityID))
 
 	if err != nil {
 		return fmt.Errorf("failed to update record: %w", err)
@@ -360,9 +368,9 @@ func (h *HstoreStore) Delete(ctx context.Context, id string) error {
 
 	// First check if the record exists and belongs to the entity
 	var existingEntityID string
-	err := h.db.QueryRowContext(ctx, `
-		SELECT entity_id FROM memory_records WHERE id = $1
-	`, id).Scan(&existingEntityID)
+	err := h.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT entity_id FROM %s WHERE id = $1
+	`, h.tableName), id).Scan(&existingEntityID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -377,9 +385,9 @@ func (h *HstoreStore) Delete(ctx context.Context, id string) error {
 	}
 
 	// Delete the record
-	_, err = h.db.ExecContext(ctx, `
-		DELETE FROM memory_records WHERE id = $1 AND entity_id = $2
-	`, id, string(entityCtx.EntityID))
+	_, err = h.db.ExecContext(ctx, fmt.Sprintf(`
+		DELETE FROM %s WHERE id = $1 AND entity_id = $2
+	`, h.tableName), id, string(entityCtx.EntityID))
 
 	if err != nil {
 		return fmt.Errorf("failed to delete record: %w", err)

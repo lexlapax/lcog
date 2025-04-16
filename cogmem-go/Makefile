@@ -14,7 +14,7 @@ SQLC = sqlc
 # Build flags
 BUILD_FLAGS = -v
 
-.PHONY: all build clean test test-verbose test-integration lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
+.PHONY: all build clean test test-verbose test-integration test-postgres lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
 
 all: build
 
@@ -53,6 +53,11 @@ test-db-setup: dev-db-up create-test-db
 # Run integration tests
 test-integration:
 	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/...
+
+# Run PostgreSQL-specific integration tests (HStore, SQLStore, and PgVector adapters)
+# See ../docs/POSTGRES_TESTING.md for details
+test-postgres:
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_postgres*.go ./test/integration/ltm_pgvector_test.go
 
 # Run benchmarks
 bench:
@@ -102,6 +107,7 @@ help:
 	@echo "  drop-test-db    - Drop test database"
 	@echo "  test-db-setup   - Start database and create test database"
 	@echo "  test-integration - Run integration tests"
+	@echo "  test-postgres   - Run PostgreSQL-specific integration tests (see ../docs/POSTGRES_TESTING.md)"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"
 	@echo "  fmt             - Format code"
