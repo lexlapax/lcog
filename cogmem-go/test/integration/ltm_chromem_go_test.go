@@ -29,10 +29,12 @@ func TestChromemGoLTMIntegration(t *testing.T) {
 
 	// Set up the adapter
 	ctx := context.Background()
+	// Use dimension size that matches our test embeddings (5 dimensions)
+	dimensions := 5
 	config := chromem_go.ChromemGoConfig{
 		Collection:  collectionName,
 		StoragePath: tempDir,
-		Dimensions:  1536,
+		Dimensions:  dimensions,
 	}
 
 	adapter, err := chromem_go.NewChromemGoAdapterWithConfig(&config)
@@ -56,7 +58,7 @@ func TestChromemGoLTMIntegration(t *testing.T) {
 				"test_key": "test_value",
 				"source":   "integration_test",
 			},
-			Embedding:  []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
+			Embedding:  []float32{0.1, 0.2, 0.3, 0.4, 0.5},
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
 		}
@@ -98,7 +100,7 @@ func TestChromemGoLTMIntegration(t *testing.T) {
 			AccessLevel: entity.PrivateToUser,
 			Content:     "Original content",
 			Metadata:    map[string]interface{}{},
-			Embedding:   []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
+			Embedding:   []float32{0.1, 0.2, 0.3, 0.4, 0.5},
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
@@ -109,7 +111,7 @@ func TestChromemGoLTMIntegration(t *testing.T) {
 
 		// Update it
 		record.Content = "Updated content"
-		record.Embedding = []float32{0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0}
+		record.Embedding = []float32{0.9, 0.8, 0.7, 0.6, 0.5}
 		record.Metadata = map[string]interface{}{
 			"updated": true,
 		}
