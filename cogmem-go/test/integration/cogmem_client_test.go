@@ -152,7 +152,7 @@ func TestCogMemClientIntegration(t *testing.T) {
 	)
 
 	// Create the CogMemClient with reflection enabled
-	clientInstance := cogmem.NewCogMemClient(
+	clientInstance := cogmem.NewCogMem(
 		mmuInstance,
 		mockReasoning,
 		scriptEngine,
@@ -249,7 +249,7 @@ func TestCogMemClientIntegration(t *testing.T) {
 		)
 		
 		// Create a new client with reflection disabled
-		clientNoReflection := cogmem.NewCogMemClient(
+		clientNoReflection := cogmem.NewCogMem(
 			mmuInstance,
 			mockReasoning,
 			scriptEngine,

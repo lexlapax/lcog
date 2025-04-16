@@ -3,16 +3,20 @@ package cogmem
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/lexlapax/cogmem/pkg/entity"
 	"github.com/lexlapax/cogmem/pkg/mem/ltm"
 	"github.com/lexlapax/cogmem/pkg/mmu"
+	"github.com/lexlapax/cogmem/pkg/config"
 	"github.com/lexlapax/cogmem/pkg/reasoning"
 	"github.com/lexlapax/cogmem/pkg/reflection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // MockMMU is a mock implementation of the mmu.MMU interface
@@ -100,7 +104,7 @@ func setupClientTest(t *testing.T) (*CogMemClientImpl, *MockMMU, *MockReasoningE
 	mockScripting := new(MockScriptingEngine)
 	mockReflection := new(MockReflectionModule)
 
-	client := NewCogMemClient(
+	client := NewCogMem(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
@@ -341,7 +345,7 @@ func TestCogMemClient_Reflection(t *testing.T) {
 	mockReflection := new(MockReflectionModule)
 
 	// Configure client with reflection enabled and frequency of 2
-	client := NewCogMemClient(
+	client := NewCogMem(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
@@ -404,7 +408,7 @@ func TestCogMemClient_ReflectionDisabled(t *testing.T) {
 	mockReflection := new(MockReflectionModule)
 
 	// Configure client with reflection disabled
-	client := NewCogMemClient(
+	client := NewCogMem(
 		mockMMU,
 		mockReasoning,
 		mockScripting,
@@ -432,4 +436,47 @@ func TestCogMemClient_ReflectionDisabled(t *testing.T) {
 	mockReasoning.AssertExpectations(t)
 	mockScripting.AssertNotCalled(t, "ExecuteFunction")
 	mockReflection.AssertNotCalled(t, "TriggerReflection")
+}
+
+// TestNewCogMemFromConfig is a unit test for the config initialization function
+func TestNewCogMemFromConfig(t *testing.T) {
+	// Create a temp directory for test config
+	tempDir, err := os.MkdirTemp("", "cogmem-config-unit-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a minimal mock config
+	mockConfig := config.Config{
+		LTM: config.LTMConfig{
+			Type: "mock", // Mock store for unit tests
+		},
+		Scripting: config.ScriptingConfig{
+			Paths: []string{tempDir}, // Path doesn't need to exist for mock
+		},
+		Reasoning: config.ReasoningConfig{
+			Provider: "mock",
+		},
+		Reflection: config.ReflectionConfig{
+			Enabled: true,
+		},
+	}
+
+	// Write config to file
+	configYaml, err := yaml.Marshal(mockConfig)
+	require.NoError(t, err)
+	configPath := filepath.Join(tempDir, "mock_config.yaml")
+	err = os.WriteFile(configPath, configYaml, 0644)
+	require.NoError(t, err)
+
+	// Test NewCogMemFromConfig with the mock config
+	client, err := NewCogMemFromConfig(configPath)
+	
+	// Should succeed with a mock config
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	// Test with invalid config path
+	_, err = NewCogMemFromConfig("/path/does/not/exist.yaml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load configuration")
 }
