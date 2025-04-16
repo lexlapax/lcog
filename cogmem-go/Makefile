@@ -94,7 +94,15 @@ test-cmd-script-all: install
 # Run PostgreSQL-specific integration tests (HStore, SQLStore, and PgVector adapters)
 # See ../docs/POSTGRES_TESTING.md for details
 test-postgres:
-	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_postgres*.go ./test/integration/ltm_pgvector_test.go
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_postgres*.go ./test/integration/ltm_pgvector*.go
+
+# Run pgvector semantic search and entity isolation tests specifically
+test-pgvector-semantic:
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_pgvector_semantic_test.go
+	
+# Run pgvector tests with real OpenAI embeddings (requires API key)
+test-pgvector-openai:
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_pgvector_openai_test.go
 
 # Run benchmarks
 bench:
@@ -154,6 +162,8 @@ help:
 	@echo "  test-cmd-script-chromemgo - Run script-based tests with ChromemGo backend"
 	@echo "  test-cmd-script-all - Run all script-based tests"
 	@echo "  test-postgres   - Run PostgreSQL-specific integration tests (see ../docs/POSTGRES_TESTING.md)"
+	@echo "  test-pgvector-semantic - Run pgvector semantic search and entity isolation tests"
+	@echo "  test-pgvector-openai   - Run pgvector tests with real OpenAI embeddings (requires API key)"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"
 	@echo "  fmt             - Format code"
