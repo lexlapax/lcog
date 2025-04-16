@@ -71,3 +71,4 @@ go.work
 .cogmem_history
 cogmem-go/.cogmem_history
 cogmem-go/bin/example-client
+cogmem-go/test/scripts/output/
