@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -59,6 +60,7 @@ const historyFile = ".cogmem_history"
 func main() {
 	// Parse command-line flags
 	configPath := flag.String("config", "", "Path to configuration file")
+	stdinMode := flag.Bool("s", false, "Read from stdin and exit when complete")
 	flag.Parse()
 	
 	// Initialize logger
@@ -84,16 +86,66 @@ func main() {
 	}
 	
 	// Start the command-line interface
-	runCLI(clientInstance, cfg)
+	runCLI(clientInstance, cfg, *stdinMode)
 }
 
 // runCLI starts the command-line interface for user interaction
-func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
+func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config, stdinMode bool) {
 	// Initialize with default entity and user
 	currentEntity := entity.EntityID("default-entity")
 	currentUser := "default-user"
 	entityCtx := entity.NewContext(currentEntity, currentUser)
 
+	// Different handling based on mode
+	if stdinMode {
+		// Use a scanner for direct stdin processing
+		scanner := bufio.NewScanner(os.Stdin)
+		
+		// Print welcome message
+		fmt.Println("\n=== CogMem Client (stdin mode) ===")
+		fmt.Println("LTM Store:", cfg.LTM.Type)
+		if cfg.LTM.Type == "sql" || cfg.LTM.Type == "sqlstore" {
+			fmt.Println("SQL Driver:", cfg.LTM.SQL.Driver)
+		} else if cfg.LTM.Type == "kv" {
+			fmt.Println("KV Provider:", cfg.LTM.KV.Provider)
+		}
+		fmt.Printf("Current Entity: %s | Current User: %s\n", currentEntity, currentUser)
+		
+		// Process stdin lines
+		for scanner.Scan() {
+			input := strings.TrimSpace(scanner.Text())
+			if input == "" {
+				continue
+			}
+			
+			// Skip comments and shebang lines for stdin-based testing
+			if strings.HasPrefix(input, "#") || strings.HasPrefix(input, "//") {
+				continue
+			}
+			
+			// Process each line
+			if input == cmdQuit {
+				fmt.Println("Goodbye!")
+				return
+			}
+			
+			// Format a fake prompt for better output readability
+			prompt := fmt.Sprintf("cogmem::%s@%s> ", currentUser, currentEntity)
+			fmt.Print(prompt, input, "\n")
+			
+			// Process the command
+			processCommand(input, clientInstance, cfg, &currentEntity, &currentUser, &entityCtx, nil)
+		}
+		
+		// Exit when stdin is complete
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("Error reading stdin: %v\n", err)
+		}
+		fmt.Println("Goodbye!")
+		return
+	}
+	
+	// Interactive mode
 	// Create and configure the liner (command line) state
 	line := liner.NewLiner()
 	defer line.Close()
@@ -130,7 +182,7 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 	// Print welcome message
 	fmt.Println("\n=== CogMem Client ===")
 	fmt.Println("LTM Store:", cfg.LTM.Type)
-	if cfg.LTM.Type == "sql" {
+	if cfg.LTM.Type == "sql" || cfg.LTM.Type == "sqlstore" {
 		fmt.Println("SQL Driver:", cfg.LTM.SQL.Driver)
 	} else if cfg.LTM.Type == "kv" {
 		fmt.Println("KV Provider:", cfg.LTM.KV.Provider)
@@ -162,207 +214,255 @@ func runCLI(clientInstance *cogmem.CogMemClientImpl, cfg *config.Config) {
 		// Add to history
 		line.AppendHistory(input)
 
-		// Process commands
-		if strings.HasPrefix(input, "!") {
-			parts := strings.SplitN(input, " ", 2)
-			cmd := parts[0]
+		// If quit command, break the loop
+		if input == cmdQuit {
+			fmt.Println("Goodbye!")
+			break
+		}
 
-			switch cmd {
-			case cmdHelp:
-				fmt.Println(helpText)
+		// Process command
+		shouldContinue := processCommand(input, clientInstance, cfg, &currentEntity, &currentUser, &entityCtx, line)
+		if !shouldContinue {
+			break
+		}
+	}
+}
 
-			case cmdQuit:
-				fmt.Println("Goodbye!")
-				return
+// processCommand handles a single command and returns false if the CLI should exit
+func processCommand(input string, 
+                    clientInstance *cogmem.CogMemClientImpl, 
+                    cfg *config.Config, 
+                    currentEntity *entity.EntityID, 
+                    currentUser *string, 
+                    entityCtx *entity.Context,
+                    line *liner.State) bool {
+	
+	// Process commands
+	if strings.HasPrefix(input, "!") {
+		parts := strings.SplitN(input, " ", 2)
+		cmd := parts[0]
 
-			case cmdEntity:
-				if len(parts) == 1 {
-					fmt.Printf("Current entity: %s\n", currentEntity)
-					// Prompt for entity ID if not provided
+		switch cmd {
+		case cmdHelp:
+			fmt.Println(helpText)
+
+		case cmdQuit:
+			// Already handled in main loop
+			return false
+
+		case cmdEntity:
+			if len(parts) == 1 {
+				fmt.Printf("Current entity: %s\n", *currentEntity)
+				// Prompt for entity ID if not provided and in interactive mode
+				if line != nil {
 					entityIDInput, err := line.Prompt("Enter new entity ID (or press Enter to keep current): ")
 					if err == nil && strings.TrimSpace(entityIDInput) != "" {
-						currentEntity = entity.EntityID(strings.TrimSpace(entityIDInput))
-						entityCtx = entity.NewContext(currentEntity, currentUser)
-						fmt.Printf("Entity set to: %s\n", currentEntity)
+						*currentEntity = entity.EntityID(strings.TrimSpace(entityIDInput))
+						*entityCtx = entity.NewContext(*currentEntity, *currentUser)
+						fmt.Printf("Entity set to: %s\n", *currentEntity)
 					}
-				} else {
-					currentEntity = entity.EntityID(parts[1])
-					entityCtx = entity.NewContext(currentEntity, currentUser)
-					fmt.Printf("Entity set to: %s\n", currentEntity)
 				}
+			} else {
+				*currentEntity = entity.EntityID(parts[1])
+				*entityCtx = entity.NewContext(*currentEntity, *currentUser)
+				fmt.Printf("Entity set to: %s\n", *currentEntity)
+			}
 
-			case cmdUser:
-				if len(parts) == 1 {
-					fmt.Printf("Current user: %s\n", currentUser)
-					// Prompt for user ID if not provided
+		case cmdUser:
+			if len(parts) == 1 {
+				fmt.Printf("Current user: %s\n", *currentUser)
+				// Prompt for user ID if not provided and in interactive mode
+				if line != nil {
 					userIDInput, err := line.Prompt("Enter new user ID (or press Enter to keep current): ")
 					if err == nil && strings.TrimSpace(userIDInput) != "" {
-						currentUser = strings.TrimSpace(userIDInput)
-						entityCtx = entity.NewContext(currentEntity, currentUser)
-						fmt.Printf("User set to: %s\n", currentUser)
+						*currentUser = strings.TrimSpace(userIDInput)
+						*entityCtx = entity.NewContext(*currentEntity, *currentUser)
+						fmt.Printf("User set to: %s\n", *currentUser)
 					}
-				} else {
-					currentUser = parts[1]
-					entityCtx = entity.NewContext(currentEntity, currentUser)
-					fmt.Printf("User set to: %s\n", currentUser)
 				}
+			} else {
+				*currentUser = parts[1]
+				*entityCtx = entity.NewContext(*currentEntity, *currentUser)
+				fmt.Printf("User set to: %s\n", *currentUser)
+			}
 
-			case cmdRemember:
-				memory := ""
-				if len(parts) == 1 {
-					// Prompt for memory content if not provided
+		case cmdRemember:
+			memory := ""
+			if len(parts) == 1 {
+				// Prompt for memory content if not provided and in interactive mode
+				if line != nil {
 					var err error
 					memory, err = line.Prompt("Enter memory to store: ")
 					if err != nil || strings.TrimSpace(memory) == "" {
 						fmt.Println("Memory storage cancelled")
-						continue
+						return true
 					}
 				} else {
-					memory = parts[1]
+					fmt.Println("Memory content required")
+					return true
 				}
-				
-				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := clientInstance.Process(ctx, cogmem.InputTypeStore, memory)
-				if err != nil {
-					fmt.Printf("Error storing memory: %v\n", err)
-				} else {
-					fmt.Println(response)
-				}
+			} else {
+				memory = parts[1]
+			}
+			
+			ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeStore, memory)
+			if err != nil {
+				fmt.Printf("Error storing memory: %v\n", err)
+			} else {
+				fmt.Println(response)
+			}
 
-			case cmdLookup:
-				query := ""
-				if len(parts) == 1 {
-					// Prompt for query if not provided
+		case cmdLookup:
+			query := ""
+			if len(parts) == 1 {
+				// Prompt for query if not provided and in interactive mode
+				if line != nil {
 					var err error
 					query, err = line.Prompt("Enter lookup query: ")
 					if err != nil || strings.TrimSpace(query) == "" {
 						fmt.Println("Lookup cancelled")
-						continue
+						return true
 					}
 				} else {
-					query = parts[1]
+					fmt.Println("Lookup query required")
+					return true
 				}
-				
-				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := clientInstance.Process(ctx, cogmem.InputTypeRetrieve, query)
-				if err != nil {
-					fmt.Printf("Error looking up memories: %v\n", err)
-				} else {
-					fmt.Println(response)
-				}
-				
-			case cmdSearch:
-				query := ""
-				if len(parts) == 1 {
-					// Prompt for query if not provided
+			} else {
+				query = parts[1]
+			}
+			
+			ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeRetrieve, query)
+			if err != nil {
+				fmt.Printf("Error looking up memories: %v\n", err)
+			} else {
+				fmt.Println(response)
+			}
+			
+		case cmdSearch:
+			query := ""
+			if len(parts) == 1 {
+				// Prompt for query if not provided and in interactive mode
+				if line != nil {
 					var err error
 					query, err = line.Prompt("Enter semantic search query: ")
 					if err != nil || strings.TrimSpace(query) == "" {
 						fmt.Println("Search cancelled")
-						continue
+						return true
 					}
 				} else {
-					query = parts[1]
+					fmt.Println("Search query required")
+					return true
 				}
-				
-				// Create a special query for semantic search
-				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				fmt.Println("Performing semantic search...")
-				
-				// Use InputTypeQuery with a semantic search prefix to trigger vector search
-				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "SEMANTIC_SEARCH: "+query)
-				if err != nil {
-					fmt.Printf("Error in semantic search: %v\n", err)
-				} else {
-					fmt.Println(response)
-				}
+			} else {
+				query = parts[1]
+			}
+			
+			// Create a special query for semantic search
+			ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+			fmt.Println("Performing semantic search...")
+			
+			// Use InputTypeQuery with a semantic search prefix to trigger vector search
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "SEMANTIC_SEARCH: "+query)
+			if err != nil {
+				fmt.Printf("Error in semantic search: %v\n", err)
+			} else {
+				fmt.Println(response)
+			}
 
-			case cmdQuery:
-				question := ""
-				if len(parts) == 1 {
-					// Prompt for question if not provided
+		case cmdQuery:
+			question := ""
+			if len(parts) == 1 {
+				// Prompt for question if not provided and in interactive mode
+				if line != nil {
 					var err error
 					question, err = line.Prompt("Enter question: ")
 					if err != nil || strings.TrimSpace(question) == "" {
 						fmt.Println("Query cancelled")
-						continue
+						return true
 					}
 				} else {
-					question = parts[1]
+					fmt.Println("Question required")
+					return true
 				}
-				
-				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, question)
-				if err != nil {
-					fmt.Printf("Error querying: %v\n", err)
-				} else {
-					fmt.Println(response)
-				}
-
-			case cmdReflect:
-				// Manually trigger reflection
-				fmt.Println("Manually triggering reflection cycle...")
-				ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-				
-				// We need to perform a dummy operation first to put something in working memory
-				_, err := clientInstance.Process(ctx, cogmem.InputTypeStore, "Manual reflection trigger at "+time.Now().Format(time.RFC3339))
-				if err != nil {
-					fmt.Printf("Error preparing for reflection: %v\n", err)
-					continue
-				}
-				
-				// Now trigger reflection directly (normally happens automatically based on operation count)
-				response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "Perform reflection on recent memories and operations")
-				if err != nil {
-					fmt.Printf("Error during reflection: %v\n", err)
-				} else {
-					fmt.Println("Reflection completed successfully")
-					fmt.Println(response)
-				}
-				
-			case cmdConfig:
-				// Display current configuration
-				fmt.Println("\nCurrent Configuration:")
-				fmt.Println("======================")
-				fmt.Printf("LTM Store Type: %s\n", cfg.LTM.Type)
-				if cfg.LTM.Type == "sql" {
-					fmt.Printf("SQL Driver: %s\n", cfg.LTM.SQL.Driver)
-					fmt.Printf("SQL DSN: %s\n", cfg.LTM.SQL.DSN)
-				} else if cfg.LTM.Type == "kv" {
-					fmt.Printf("KV Provider: %s\n", cfg.LTM.KV.Provider)
-				} else if cfg.LTM.Type == "chromemgo" || cfg.LTM.Type == "vector" {
-					fmt.Printf("ChromemGo URL: %s\n", cfg.LTM.ChromemGo.URL)
-					fmt.Printf("ChromemGo Collection: %s\n", cfg.LTM.ChromemGo.Collection)
-				}
-						if cfg.LTM.KV.Provider == "postgres_hstore" {
-							fmt.Printf("PostgreSQL HStore (using table: memory_records_hstore)\n")
-						}
-				
-				fmt.Printf("\nReasoning Provider: %s\n", cfg.Reasoning.Provider)
-				if cfg.Reasoning.Provider == "openai" {
-					fmt.Printf("OpenAI Model: %s\n", cfg.Reasoning.OpenAI.Model)
-					fmt.Printf("OpenAI Embedding Model: %s\n", cfg.Reasoning.OpenAI.EmbeddingModel)
-				}
-				
-				fmt.Printf("\nReflection Enabled: %v\n", cfg.Reflection.Enabled)
-				fmt.Printf("Reflection Frequency: %d\n", cfg.Reflection.TriggerFrequency)
-				
-				fmt.Printf("\nLog Level: %s\n", cfg.Logging.Level)
-				fmt.Printf("Entity: %s\n", currentEntity)
-				fmt.Printf("User: %s\n", currentUser)
-
-			default:
-				fmt.Printf("Unknown command: %s\nType !help for available commands.\n", cmd)
+			} else {
+				question = parts[1]
 			}
-		} else {
-			// Treat as a query by default
-			ctx := entity.ContextWithEntity(context.Background(), entityCtx)
-			response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, input)
+			
+			ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, question)
 			if err != nil {
-				fmt.Printf("Error processing query: %v\n", err)
+				fmt.Printf("Error querying: %v\n", err)
 			} else {
 				fmt.Println(response)
 			}
+
+		case cmdReflect:
+			// Manually trigger reflection
+			fmt.Println("Manually triggering reflection cycle...")
+			ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+			
+			// We need to perform a dummy operation first to put something in working memory
+			_, err := clientInstance.Process(ctx, cogmem.InputTypeStore, "Manual reflection trigger at "+time.Now().Format(time.RFC3339))
+			if err != nil {
+				fmt.Printf("Error preparing for reflection: %v\n", err)
+				return true
+			}
+			
+			// Now trigger reflection directly (normally happens automatically based on operation count)
+			response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, "Perform reflection on recent memories and operations")
+			if err != nil {
+				fmt.Printf("Error during reflection: %v\n", err)
+			} else {
+				fmt.Println("Reflection completed successfully")
+				fmt.Println(response)
+			}
+			
+		case cmdConfig:
+			// Display current configuration
+			fmt.Println("\nCurrent Configuration:")
+			fmt.Println("======================")
+			fmt.Printf("LTM Store Type: %s\n", cfg.LTM.Type)
+			if cfg.LTM.Type == "sql" || cfg.LTM.Type == "sqlstore" {
+				fmt.Printf("SQL Driver: %s\n", cfg.LTM.SQL.Driver)
+				fmt.Printf("SQL DSN: %s\n", cfg.LTM.SQL.DSN)
+			} else if cfg.LTM.Type == "kv" {
+				fmt.Printf("KV Provider: %s\n", cfg.LTM.KV.Provider)
+			} else if cfg.LTM.Type == "chromemgo" || cfg.LTM.Type == "vector" {
+				fmt.Printf("ChromemGo URL: %s\n", cfg.LTM.ChromemGo.URL)
+				fmt.Printf("ChromemGo Collection: %s\n", cfg.LTM.ChromemGo.Collection)
+			}
+			if cfg.LTM.KV.Provider == "postgres_hstore" {
+				fmt.Printf("PostgreSQL HStore (using table: memory_records_hstore)\n")
+			}
+			
+			fmt.Printf("\nReasoning Provider: %s\n", cfg.Reasoning.Provider)
+			if cfg.Reasoning.Provider == "openai" {
+				fmt.Printf("OpenAI Model: %s\n", cfg.Reasoning.OpenAI.Model)
+				fmt.Printf("OpenAI Embedding Model: %s\n", cfg.Reasoning.OpenAI.EmbeddingModel)
+			}
+			
+			fmt.Printf("\nReflection Enabled: %v\n", cfg.Reflection.Enabled)
+			fmt.Printf("Reflection Frequency: %d\n", cfg.Reflection.TriggerFrequency)
+			
+			fmt.Printf("\nLog Level: %s\n", cfg.Logging.Level)
+			fmt.Printf("Entity: %s\n", *currentEntity)
+			fmt.Printf("User: %s\n", *currentUser)
+
+		default:
+			fmt.Printf("Unknown command: %s\nType !help for available commands.\n", cmd)
+		}
+	} else {
+		// Treat as a query by default
+		ctx := entity.ContextWithEntity(context.Background(), *entityCtx)
+		response, err := clientInstance.Process(ctx, cogmem.InputTypeQuery, input)
+		if err != nil {
+			fmt.Printf("Error processing query: %v\n", err)
+		} else {
+			fmt.Println(response)
 		}
 	}
+	
+	return true
 }

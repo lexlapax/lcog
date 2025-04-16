@@ -19,6 +19,8 @@ Each test script contains a series of commands that are piped to the example-cli
 
 ## Running the Tests
 
+The example-client has been updated with a `-s` flag to read commands from stdin and exit when done, which makes it easier to run script-based tests.
+
 ### From the Makefile
 
 The tests can be run directly from the repository root using the Makefile:

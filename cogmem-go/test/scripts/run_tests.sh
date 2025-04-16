@@ -20,7 +20,7 @@ mkdir -p output
 
 run_mock_test() {
     echo "Running mock backend test..."
-    cat mock_test.txt | $CLIENT_BIN --config ../../configs/mock.yaml > output/mock_output.txt 2> output/mock_errors.txt
+    cat mock_test.txt | $CLIENT_BIN -s --config ../../configs/mock.yaml > output/mock_output.txt 2> output/mock_errors.txt
     if [ $? -eq 0 ]; then
         echo "Mock test completed successfully."
         ./check_results.sh mock_test.txt output/mock_output.txt
@@ -31,7 +31,7 @@ run_mock_test() {
 
 run_boltdb_test() {
     echo "Running BoltDB backend test..."
-    cat boltdb_test.txt | $CLIENT_BIN --config ../../configs/boltdb.yaml > output/boltdb_output.txt 2> output/boltdb_errors.txt
+    cat boltdb_test.txt | $CLIENT_BIN -s --config ../../configs/boltdb.yaml > output/boltdb_output.txt 2> output/boltdb_errors.txt
     if [ $? -eq 0 ]; then
         echo "BoltDB test completed successfully."
         ./check_results.sh boltdb_test.txt output/boltdb_output.txt
@@ -42,7 +42,7 @@ run_boltdb_test() {
 
 run_sqlite_test() {
     echo "Running SQLite backend test..."
-    cat sqlite_test.txt | $CLIENT_BIN --config ../../configs/sqlite.yaml > output/sqlite_output.txt 2> output/sqlite_errors.txt
+    cat sqlite_test.txt | $CLIENT_BIN -s --config ../../configs/sqlite.yaml > output/sqlite_output.txt 2> output/sqlite_errors.txt
     if [ $? -eq 0 ]; then
         echo "SQLite test completed successfully."
         ./check_results.sh sqlite_test.txt output/sqlite_output.txt
@@ -53,18 +53,30 @@ run_sqlite_test() {
 
 run_postgres_test() {
     if [ -z "$POSTGRES_URL" ]; then
-        echo "POSTGRES_URL environment variable not set. Skipping PostgreSQL test."
-        return 1
+        echo "POSTGRES_URL environment variable not set. Using default (postgres://postgres:postgres@localhost:5432/cogmem)."
+        export POSTGRES_URL="postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
     fi
 
     if [ -z "$OPENAI_API_KEY" ]; then
-        echo "OPENAI_API_KEY environment variable not set. Skipping PostgreSQL test."
-        return 1
+        echo "OPENAI_API_KEY environment variable not set. Using dummy key (will cause OpenAI API errors)."
+        export OPENAI_API_KEY="sk-dummy-key-for-testing"
     fi
-
-    echo "Running PostgreSQL backend test..."
-    cat postgres_test.txt | $CLIENT_BIN --config ../../configs/postgres.yaml > output/postgres_output.txt 2> output/postgres_errors.txt
-    if [ $? -eq 0 ]; then
+    
+    # Create a temporary config file with the current POSTGRES_URL
+    echo "Creating temporary PostgreSQL configuration..."
+    TMP_CONFIG=$(mktemp)
+    
+    # Copy the original config and replace the POSTGRES_URL variable
+    cat ../../configs/postgres.yaml | sed "s|\${POSTGRES_URL}|$POSTGRES_URL|g" > "$TMP_CONFIG"
+    
+    echo "Running PostgreSQL backend test with URL: $POSTGRES_URL"
+    cat postgres_test.txt | $CLIENT_BIN -s --config "$TMP_CONFIG" > output/postgres_output.txt 2> output/postgres_errors.txt
+    TEST_EXIT_CODE=$?
+    
+    # Clean up
+    rm -f "$TMP_CONFIG"
+    
+    if [ $TEST_EXIT_CODE -eq 0 ]; then
         echo "PostgreSQL test completed successfully."
         ./check_results.sh postgres_test.txt output/postgres_output.txt
     else
@@ -74,13 +86,25 @@ run_postgres_test() {
 
 run_chromemgo_test() {
     if [ -z "$OPENAI_API_KEY" ]; then
-        echo "OPENAI_API_KEY environment variable not set. Skipping ChromemGo test."
-        return 1
+        echo "OPENAI_API_KEY environment variable not set. Using dummy key (will cause OpenAI API errors)."
+        export OPENAI_API_KEY="sk-dummy-key-for-testing"
     fi
 
-    echo "Running ChromemGo backend test..."
-    cat chromemgo_test.txt | $CLIENT_BIN --config ../../configs/chromemgo.yaml > output/chromemgo_output.txt 2> output/chromemgo_errors.txt
-    if [ $? -eq 0 ]; then
+    # Create a temporary config file with the current OPENAI_API_KEY
+    echo "Creating temporary ChromemGo configuration..."
+    TMP_CONFIG=$(mktemp)
+    
+    # Copy the original config and replace the OPENAI_API_KEY variable
+    cat ../../configs/chromemgo.yaml | sed "s|\${OPENAI_API_KEY}|$OPENAI_API_KEY|g" > "$TMP_CONFIG"
+    
+    echo "Running ChromemGo backend test with API key..."
+    cat chromemgo_test.txt | $CLIENT_BIN -s --config "$TMP_CONFIG" > output/chromemgo_output.txt 2> output/chromemgo_errors.txt
+    TEST_EXIT_CODE=$?
+    
+    # Clean up
+    rm -f "$TMP_CONFIG"
+    
+    if [ $TEST_EXIT_CODE -eq 0 ]; then
         echo "ChromemGo test completed successfully."
         ./check_results.sh chromemgo_test.txt output/chromemgo_output.txt
     else
@@ -106,11 +130,27 @@ case $TEST_TYPE in
         run_chromemgo_test
         ;;
     all)
+        echo "=== Running Mock Backend Test ==="
         run_mock_test
+        echo ""
+        
+        echo "=== Running BoltDB Backend Test ==="
         run_boltdb_test
+        echo ""
+        
+        echo "=== Running SQLite Backend Test ==="
         run_sqlite_test
+        echo ""
+        
+        echo "=== Running PostgreSQL Backend Test ==="
         run_postgres_test
+        echo ""
+        
+        echo "=== Running ChromemGo Backend Test ==="
         run_chromemgo_test
+        echo ""
+        
+        echo "=== All Tests Completed ==="
         ;;
     *)
         echo "Unknown test type: $TEST_TYPE"
