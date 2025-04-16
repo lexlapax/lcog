@@ -1,13 +1,3 @@
-# Go Binaries
-# Ignore compiled executables - adjust 'llm-chat-service' if your module name or output name differs
-# Binaries might be created in the root or within cmd/*/ directories
-#/binary-name
-#/binary-name.exe
-/server # If built inside cmd/server/
-/server.exe # If built inside cmd/server/
-# Or more generally, ignore files without extensions in the root (often binaries)
-# /*
-
 # Node.js
 node_modules/
 .next/
@@ -80,3 +70,4 @@ go.work
 # cogmem files
 .cogmem_history
 cogmem-go/.cogmem_history
+cogmem-go/bin/example-client

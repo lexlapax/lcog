@@ -130,7 +130,9 @@ For each significant piece of functionality:
     *   **Update Example:** Enhance `cmd/example-client` to demonstrate RAG workflow *when configured to use Chromem-go*.
     *   **Update Config:** Add Chromem-go connection parameters to `configs/config.example.yaml` and the option to select `"Chromem-go"` as the `LTM.Type`. Add basic reflection config options.
 
-8.  **(Optional Stretch) Other Vector Adapters:** Implement adapters for Postgres/pgvector or Weaviate if time allows, following TDD.
+8.  **(Optional Stretch) Other Adapters:**
+    *   **Postgres Hstore KV Adapter:** Implement a key-value store adapter using PostgreSQL with the Hstore extension.
+    *   **Vector Store Adapters:** Implement adapters for Postgres/pgvector or Weaviate if time allows, following TDD.
 
 9.  **Phase 2 Review & Refactor:**
     *   Conduct code reviews, check test coverage (especially Chromem-go and MMU vector logic). Refactor. Ensure CI passes.

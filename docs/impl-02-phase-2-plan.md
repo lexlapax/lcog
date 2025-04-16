@@ -142,9 +142,20 @@ For each significant piece of functionality within this phase:
         *   Verify semantic search retrieves relevant results.
         *   Verify basic reflection cycle triggers and logs activity.
 
-### Step 8: (Optional Stretch) Other Vector LTM Adapters
+### Step 8: (Optional Stretch) Other LTM Adapters
 
-*   **8.1.** If time permits, implement adapters for other vector stores (e.g., `pkg/mem/ltm/adapters/vector/postgres_pgvector/`, `pkg/mem/ltm/adapters/vector/weaviate/` - skip weviate) following the same TDD pattern used for Chromem-go (Steps 1 & 2, adapting test helpers and implementation details).
+*   **8.1. Postgres Hstore KV Adapter (`pkg/mem/ltm/adapters/kv/postgres`):**
+    *   **8.1.1. Test (`postgres_hstore_test.go` - Integration):** Write integration tests verifying the `LTMStore` interface for Postgres with Hstore extension.
+        *   **Test Setup:** Test database connection and table creation with Hstore extension.
+        *   **Test Store:** Verify storing records with key-value pairs using Postgres Hstore.
+        *   **Test Retrieve:** Test key-based lookup and filtering by entity.
+        *   **Test Update and Delete:** Verify updating and deleting records.
+    *   **8.1.2. Implement (`postgres_hstore.go`):** Implement the `LTMStore` interface for Postgres with Hstore extension.
+        *   Use SQL queries with Hstore operators for efficient key-value storage and retrieval.
+        *   Ensure entity isolation and proper error handling.
+
+*   **8.2. Vector Store Adapters:**
+    *   If time permits, implement adapters for other vector stores (e.g., `pkg/mem/ltm/adapters/vector/postgres_pgvector/`, `pkg/mem/ltm/adapters/vector/weaviate/` - skip weaviate) following the same TDD pattern used for Chromem-go (Steps 1 & 2, adapting test helpers and implementation details).
 
 ### Step 9: Phase 2 Review & Refactor
 
