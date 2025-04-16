@@ -14,7 +14,7 @@ SQLC = sqlc
 # Build flags
 BUILD_FLAGS = -v
 
-.PHONY: all build clean test test-verbose test-integration test-postgres lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
+.PHONY: all build clean test test-verbose test-integration test-cmd test-postgres lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
 
 all: build
 
@@ -53,6 +53,14 @@ test-db-setup: dev-db-up create-test-db
 # Run integration tests
 test-integration:
 	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/...
+
+# Run command-line tool tests
+test-cmd:
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/cmd/...
+
+# Run command-line tool tests with postgres
+test-cmd-postgres:
+	INTEGRATION_TESTS=true TEST_POSTGRES=true $(GO) test -v -count=1 -tags=integration ./test/cmd/example_client_test.go -run TestExampleClientWithPostgresConfig
 
 # Run PostgreSQL-specific integration tests (HStore, SQLStore, and PgVector adapters)
 # See ../docs/POSTGRES_TESTING.md for details
@@ -107,6 +115,8 @@ help:
 	@echo "  drop-test-db    - Drop test database"
 	@echo "  test-db-setup   - Start database and create test database"
 	@echo "  test-integration - Run integration tests"
+	@echo "  test-cmd        - Run command-line tool tests"
+	@echo "  test-cmd-postgres - Run command-line tool tests with PostgreSQL"
 	@echo "  test-postgres   - Run PostgreSQL-specific integration tests (see ../docs/POSTGRES_TESTING.md)"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"

@@ -22,6 +22,7 @@ The CogMem project is organized as follows:
 - `make test` - Run unit tests
 - `make test-verbose` - Run tests with verbose output
 - `make test-integration` - Run integration tests (requires database)
+- `make test-cmd` - Run command-line tool tests
 - `make test-postgres` - Run PostgreSQL-specific tests (see repository root: /docs/POSTGRES_TESTING.md)
 - `make bench` - Run benchmarks
 - `make run` - Run the example client
@@ -36,6 +37,7 @@ The CogMem project is organized as follows:
 - `go test ./pkg/...` - Run all unit tests
 - `go test -v ./pkg/specific/package` - Run tests in specific package
 - `INTEGRATION_TESTS=true go test ./test/integration/...` - Run integration tests
+- `INTEGRATION_TESTS=true go test -tags=integration ./test/cmd/...` - Run command-line tool tests
 - `go run cmd/example-client/main.go` - Run the example client
 - `go fmt ./...` - Format code
 - `sqlc generate` - Generate SQL client code for adapters
