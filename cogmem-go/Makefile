@@ -104,6 +104,10 @@ test-pgvector-semantic:
 test-pgvector-openai:
 	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_pgvector_openai_test.go
 
+# Run entity isolation tests for pgvector
+test-pgvector-isolation:
+	INTEGRATION_TESTS=true $(GO) test -v -count=1 -tags=integration ./test/integration/ltm_pgvector_isolation_test.go
+
 # Run benchmarks
 bench:
 	$(GO) test -bench=. $(PACKAGES)
@@ -162,8 +166,9 @@ help:
 	@echo "  test-cmd-script-chromemgo - Run script-based tests with ChromemGo backend"
 	@echo "  test-cmd-script-all - Run all script-based tests"
 	@echo "  test-postgres   - Run PostgreSQL-specific integration tests (see ../docs/POSTGRES_TESTING.md)"
-	@echo "  test-pgvector-semantic - Run pgvector semantic search and entity isolation tests"
+	@echo "  test-pgvector-semantic - Run pgvector semantic search tests"
 	@echo "  test-pgvector-openai   - Run pgvector tests with real OpenAI embeddings (requires API key)"
+	@echo "  test-pgvector-isolation - Run specific entity isolation tests for pgvector adapter"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"
 	@echo "  fmt             - Format code"

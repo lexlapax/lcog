@@ -256,6 +256,7 @@ make dev-db-down
 
 Understand the project goals, design, and plan:
 
+* **Our CogMem Whitepaper: what started the journey** [./docs/cogmem-whitepaper-draft.md](./docs/cogmem-whitepaper-draft.md) 
 * **Product Requirements:** [./docs/prd.md](./docs/prd.md)
 * **Architecture:** [./docs/architecture.md](./docs/architecture.md)
 * **Implementation Plan:** [./docs/implementation-plan.md](./docs/implementation-plan.md)

@@ -45,7 +45,11 @@ func createTestRecord(entityID string, userID string, content string) ltm.Memory
 func setupTestAdapter(t *testing.T) (*PgvectorAdapter, context.Context) {
 	pgvectorURL := skipIfNoPgvector(t)
 	
-	ctx := context.Background()
+	// Create a context with a test entity
+	entityID := entity.EntityID("test-entity")
+	userID := "test-user"
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Create a random table name for tests to avoid conflicts
 	tableName := "test_" + uuid.New().String()[:8]
@@ -106,11 +110,15 @@ func TestPgvectorAdapter_Retrieve_Semantic(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	entityIDStr := uuid.New().String()
 	entityID := entity.EntityID(entityIDStr)
 	userID := "test-user-1"
+	
+	// Create context with specific entity
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Store several records with different contents
 	testRecords := []ltm.MemoryRecord{
@@ -138,10 +146,6 @@ func TestPgvectorAdapter_Retrieve_Semantic(t *testing.T) {
 	
 	// Use updated query structure
 	query := ltm.LTMQuery{
-		Filters: map[string]interface{}{
-			"entity_id": entityID,
-			"user_id":   userID,
-		},
 		Embedding: queryVector,
 		Limit:     3,
 	}
@@ -174,7 +178,7 @@ func TestPgvectorAdapter_Retrieve_Filtering(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	// Create two different entities
 	entityID1Str := uuid.New().String()
@@ -183,6 +187,13 @@ func TestPgvectorAdapter_Retrieve_Filtering(t *testing.T) {
 	entityID2 := entity.EntityID(entityID2Str)
 	userID1 := "test-user-1"
 	userID2 := "test-user-2"
+	
+	// Create entity contexts
+	entityCtx1 := entity.NewContext(entityID1, userID1)
+	ctx1 := entity.ContextWithEntity(context.Background(), entityCtx1)
+	
+	entityCtx2 := entity.NewContext(entityID2, userID1)
+	ctx2 := entity.ContextWithEntity(context.Background(), entityCtx2)
 	
 	// Store records for different entities and users
 	testRecords := []ltm.MemoryRecord{
@@ -200,68 +211,76 @@ func TestPgvectorAdapter_Retrieve_Filtering(t *testing.T) {
 	testRecords[3].AccessLevel = entity.PrivateToUser
 	testRecords[4].AccessLevel = entity.SharedWithinEntity
 	
-	for _, rec := range testRecords {
-		_, err := adapter.Store(ctx, rec)
+	// Store records with their appropriate entity contexts
+	for i, rec := range testRecords {
+		var storeCtx context.Context
+		if i < 3 {
+			// Entity1 records
+			storeCtx = ctx1
+		} else {
+			// Entity2 records
+			storeCtx = ctx2
+		}
+		_, err := adapter.Store(storeCtx, rec)
 		require.NoError(t, err)
 	}
 	
-	// Test filtering by EntityID
+	// Test retrieving Entity1 records
 	query := ltm.LTMQuery{
 		Filters: map[string]interface{}{
-			"entity_id": entityID1,
+			"access_level": entity.PrivateToUser,
 		},
 	}
 	
-	results, err := adapter.Retrieve(ctx, query)
+	results, err := adapter.Retrieve(ctx1, query)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(results))
+	assert.Equal(t, 2, len(results))
 	for _, rec := range results {
 		assert.Equal(t, entityID1, rec.EntityID)
+		assert.Equal(t, entity.PrivateToUser, rec.AccessLevel)
 	}
 	
-	// Test filtering by UserID
+	// Test retrieving Entity1 records with user filter
 	query = ltm.LTMQuery{
 		Filters: map[string]interface{}{
 			"user_id": userID1,
 		},
 	}
 	
-	results, err = adapter.Retrieve(ctx, query)
+	results, err = adapter.Retrieve(ctx1, query)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(results))
+	assert.Equal(t, 2, len(results))
 	for _, rec := range results {
+		assert.Equal(t, entityID1, rec.EntityID)
 		assert.Equal(t, userID1, rec.UserID)
 	}
 	
 	// Test filtering by EntityID and AccessLevel
 	query = ltm.LTMQuery{
 		Filters: map[string]interface{}{
-			"entity_id":    entityID1,
 			"access_level": entity.SharedWithinEntity,
 		},
 	}
 	
-	results, err = adapter.Retrieve(ctx, query)
+	results, err = adapter.Retrieve(ctx1, query)
 	assert.NoError(t, err)
 	if assert.Equal(t, 1, len(results)) && len(results) > 0 {
 		assert.Equal(t, entity.SharedWithinEntity, results[0].AccessLevel)
+		assert.Equal(t, entityID1, results[0].EntityID)
 	}
 	
-	// Test combination of EntityID, UserID, and AccessLevel
+	// Test entity isolation (Entity2 context should only see Entity2 records)
 	query = ltm.LTMQuery{
 		Filters: map[string]interface{}{
-			"entity_id":    entityID1,
-			"user_id":      userID1,
-			"access_level": entity.PrivateToUser,
+			"user_id": userID1,
 		},
 	}
 	
-	results, err = adapter.Retrieve(ctx, query)
+	results, err = adapter.Retrieve(ctx2, query)
 	assert.NoError(t, err)
 	if assert.Equal(t, 1, len(results)) && len(results) > 0 {
-		assert.Equal(t, entityID1, results[0].EntityID)
+		assert.Equal(t, entityID2, results[0].EntityID)
 		assert.Equal(t, userID1, results[0].UserID)
-		assert.Equal(t, entity.PrivateToUser, results[0].AccessLevel)
 	}
 }
 
@@ -270,11 +289,15 @@ func TestPgvectorAdapter_Retrieve_ByID(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	entityIDStr := uuid.New().String()
 	entityID := entity.EntityID(entityIDStr)
 	userID := "test-user-1"
+	
+	// Create entity context
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Store a record and remember its ID
 	record := createTestRecord(string(entityID), userID, "Test record for ID lookup")
@@ -295,6 +318,16 @@ func TestPgvectorAdapter_Retrieve_ByID(t *testing.T) {
 		assert.Equal(t, id, results[0].ID)
 		assert.Equal(t, "Test record for ID lookup", results[0].Content)
 	}
+	
+	// Create a different entity context and verify isolation
+	otherEntityID := entity.EntityID("other-entity")
+	otherEntityCtx := entity.NewContext(otherEntityID, userID)
+	otherCtx := entity.ContextWithEntity(context.Background(), otherEntityCtx)
+	
+	// Attempt to retrieve with different entity context
+	results, err = adapter.Retrieve(otherCtx, query)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(results), "Different entity should not see the record")
 }
 
 func TestPgvectorAdapter_Update(t *testing.T) {
@@ -302,11 +335,15 @@ func TestPgvectorAdapter_Update(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	entityIDStr := uuid.New().String()
 	entityID := entity.EntityID(entityIDStr)
 	userID := "test-user-1"
+	
+	// Create entity context
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Store a record
 	record := createTestRecord(string(entityID), userID, "Original content")
@@ -346,11 +383,15 @@ func TestPgvectorAdapter_Delete(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	entityIDStr := uuid.New().String()
 	entityID := entity.EntityID(entityIDStr)
 	userID := "test-user-1"
+	
+	// Create entity context
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Store a record
 	record := createTestRecord(string(entityID), userID, "Content to be deleted")
@@ -383,11 +424,15 @@ func TestPgvectorAdapter_EdgeCases(t *testing.T) {
 	skipIfNoPgvector(t)
 	
 	// Setup
-	adapter, ctx := setupTestAdapter(t)
+	adapter, _ := setupTestAdapter(t)
 	
 	entityIDStr := uuid.New().String()
 	entityID := entity.EntityID(entityIDStr)
 	userID := "test-user-1"
+	
+	// Create entity context
+	entityCtx := entity.NewContext(entityID, userID)
+	ctx := entity.ContextWithEntity(context.Background(), entityCtx)
 	
 	// Test dimension mismatch
 	record := createTestRecord(string(entityID), userID, "Record with wrong embedding dimension")
@@ -424,6 +469,17 @@ func TestPgvectorAdapter_EdgeCases(t *testing.T) {
 	err = adapter.Update(ctx, record)
 	assert.Error(t, err)
 	assert.Equal(t, ErrRecordNotFound, err)
+	
+	// Test retrieving with missing entity context
+	missingCtx := context.Background() // No entity context
+	query := ltm.LTMQuery{
+		ExactMatch: map[string]interface{}{
+			"id": id,
+		},
+	}
+	_, err = adapter.Retrieve(missingCtx, query)
+	assert.Error(t, err)
+	assert.Equal(t, entity.ErrMissingEntityContext, err)
 }
 
 func TestPgvectorAdapter_SupportsVectorSearch(t *testing.T) {

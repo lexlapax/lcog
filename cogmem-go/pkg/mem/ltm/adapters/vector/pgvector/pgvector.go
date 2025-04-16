@@ -295,6 +295,19 @@ func (a *PgvectorAdapter) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]l
 		return nil, ErrPgvectorUnavailable
 	}
 
+	// Extract entity context for logging
+	entityCtx, ok := entity.GetEntityContext(ctx)
+	if !ok {
+		return nil, entity.ErrMissingEntityContext
+	}
+
+	log.Debug("PgVector retrieve operation",
+		"entity_id", entityCtx.EntityID,
+		"has_embedding", len(query.Embedding) > 0,
+		"has_exact_match", query.ExactMatch != nil,
+		"has_filters", query.Filters != nil,
+		"text", query.Text)
+
 	// Determine the retrieval mode based on the query
 	var rows pgx.Rows
 	var err error
@@ -306,16 +319,24 @@ func (a *PgvectorAdapter) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]l
 		if !ok {
 			return nil, errors.New("invalid record ID in query")
 		}
+		log.Debug("PgVector ID-based lookup", "record_id", recordID, "entity_id", entityCtx.EntityID)
 		rows, err = a.retrieveByID(ctx, recordID)
 	case len(query.Embedding) > 0:
 		// Semantic search with vector
+		log.Debug("PgVector semantic search", 
+			"entity_id", entityCtx.EntityID, 
+			"embedding_size", len(query.Embedding))
 		rows, err = a.retrieveSemantic(ctx, query)
 	default:
 		// Filter-based search
+		log.Debug("PgVector filter-based search", 
+			"entity_id", entityCtx.EntityID,
+			"filters", fmt.Sprintf("%v", query.Filters))
 		rows, err = a.retrieveByFilters(ctx, query)
 	}
 
 	if err != nil {
+		log.Error("PgVector retrieve error", "error", err, "entity_id", entityCtx.EntityID)
 		return nil, err
 	}
 	defer rows.Close()
@@ -326,18 +347,28 @@ func (a *PgvectorAdapter) Retrieve(ctx context.Context, query ltm.LTMQuery) ([]l
 		return nil, err
 	}
 
+	log.Debug("PgVector retrieve complete", 
+		"entity_id", entityCtx.EntityID,
+		"records_found", len(records))
+
 	return records, nil
 }
 
 // retrieveByID retrieves a record by its ID
 func (a *PgvectorAdapter) retrieveByID(ctx context.Context, recordID string) (pgx.Rows, error) {
+	// Extract entity context for isolation
+	entityCtx, ok := entity.GetEntityContext(ctx)
+	if !ok {
+		return nil, entity.ErrMissingEntityContext
+	}
+
 	query := fmt.Sprintf(`
 		SELECT id, entity_id, user_id, access_level, content, metadata, embedding, created_at, updated_at 
 		FROM %s 
-		WHERE id = $1
+		WHERE id = $1 AND entity_id = $2
 	`, a.tableName)
 
-	rows, err := a.db.Query(ctx, query, recordID)
+	rows, err := a.db.Query(ctx, query, recordID, string(entityCtx.EntityID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query by ID: %w", err)
 	}
@@ -353,6 +384,22 @@ func (a *PgvectorAdapter) retrieveSemantic(ctx context.Context, query ltm.LTMQue
 
 	if len(query.Embedding) != a.dimensionSize {
 		return nil, fmt.Errorf("embedding dimension mismatch: got %d, expected %d", len(query.Embedding), a.dimensionSize)
+	}
+
+	// Extract entity context for isolation
+	entityCtx, ok := entity.GetEntityContext(ctx)
+	if !ok {
+		return nil, entity.ErrMissingEntityContext
+	}
+
+	// Ensure entity_id filter is present for proper isolation
+	if query.Filters == nil {
+		query.Filters = make(map[string]interface{})
+	}
+	
+	// Only set entity_id if it's not already in the filters
+	if _, hasEntityID := query.Filters["entity_id"]; !hasEntityID {
+		query.Filters["entity_id"] = entityCtx.EntityID
 	}
 
 	// Convert embedding to a format suitable for pgvector
@@ -399,6 +446,22 @@ func (a *PgvectorAdapter) retrieveSemantic(ctx context.Context, query ltm.LTMQue
 
 // retrieveByFilters retrieves records using metadata filters
 func (a *PgvectorAdapter) retrieveByFilters(ctx context.Context, query ltm.LTMQuery) (pgx.Rows, error) {
+	// Extract entity context for isolation
+	entityCtx, ok := entity.GetEntityContext(ctx)
+	if !ok {
+		return nil, entity.ErrMissingEntityContext
+	}
+
+	// Ensure entity_id filter is present for proper isolation
+	if query.Filters == nil {
+		query.Filters = make(map[string]interface{})
+	}
+	
+	// Only set entity_id if it's not already in the filters
+	if _, hasEntityID := query.Filters["entity_id"]; !hasEntityID {
+		query.Filters["entity_id"] = entityCtx.EntityID
+	}
+
 	// Build the WHERE clause for filtering
 	whereClause, args := a.buildWhereClause(query)
 
@@ -447,7 +510,7 @@ func (a *PgvectorAdapter) buildWhereClause(query ltm.LTMQuery) (string, []interf
 
 	// Start with a true condition to make it easier to add AND clauses
 	conditions = append(conditions, "TRUE")
-
+	
 	// Process exact match criteria
 	if query.ExactMatch != nil {
 		for k, v := range query.ExactMatch {
