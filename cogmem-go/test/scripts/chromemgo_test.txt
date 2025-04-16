@@ -1,0 +1,60 @@
+#!/bin/bash
+# chromemgo_test.txt - Script of commands to test example-client with ChromemGo vector DB
+# Run with: OPENAI_API_KEY="..." cat chromemgo_test.txt | ./bin/example-client --config configs/chromemgo.yaml
+
+# Begin test
+# First check the configuration - should show ChromemGo
+!config
+# Expect: Should show ChromemGo configuration
+
+# Create a test entity and user
+!entity chrome_test_entity
+# Expect: "Entity set to: chrome_test_entity"
+
+!user chrome_test_user
+# Expect: "User set to: chrome_test_user"
+
+# Store some memories for vector search testing
+!remember ChromemGo is an embedded vector database for Go applications.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember Vector databases are designed for semantic search and similarity lookups.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember When using vector databases, text is converted to embeddings which represent semantic meaning.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember Neural networks can generate embeddings that capture the meaning of text.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Test basic retrieval
+!lookup ChromemGo
+# Expect: Should find the memory about ChromemGo
+
+# Test semantic search (requires OpenAI API key)
+!search vector similarity
+# Expect: Should return memories related to vector databases and similarity
+
+!search neural networks and embeddings
+# Expect: Should return memories about embeddings and neural networks
+
+# Test entity isolation
+!entity chrome_test_entity2
+# Expect: "Entity set to: chrome_test_entity2"
+
+!remember This is a test memory for the second ChromemGo entity.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!lookup ChromemGo
+# Expect: "No memories found for the query." (Different entity)
+
+# Return to original entity
+!entity chrome_test_entity
+# Expect: "Entity set to: chrome_test_entity"
+
+!lookup vector
+# Expect: Should find the memories about vector databases
+
+# Exit
+!quit
+# Expect: "Goodbye!"

@@ -1,0 +1,61 @@
+#!/bin/bash
+# mock_test.txt - Script of commands to test example-client with mock LTM
+# Run with: cat mock_test.txt | ./bin/example-client --config configs/mock.yaml
+
+# Begin test
+# First check the configuration
+!config
+# Expect: Should show current configuration
+
+# Create a test entity and user
+!entity mock_test_entity
+# Expect: "Entity set to: mock_test_entity"
+
+!user mock_test_user
+# Expect: "User set to: mock_test_user"
+
+# Store some memories
+!remember The quick brown fox jumps over the lazy dog.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember CogMem is a cognitive memory system with multiple storage backends.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember The mock storage backend is useful for testing and debugging.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Test basic keyword retrieval
+!lookup fox
+# Expect: Should find the memory containing "fox"
+
+!lookup CogMem
+# Expect: Should find the memory containing "CogMem"
+
+!lookup nonexistent
+# Expect: "No memories found for the query."
+
+# Test more advanced features
+!query What can you tell me about CogMem?
+# Expect: Should provide a mock response
+
+# Create a second entity to test isolation
+!entity mock_test_entity2
+# Expect: "Entity set to: mock_test_entity2"
+
+!remember This memory belongs only to the second entity.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Should only find memories for the current entity
+!lookup memory
+# Expect: Should find the memory about "second entity", not earlier memories
+
+# Switch back to first entity
+!entity mock_test_entity
+# Expect: "Entity set to: mock_test_entity"
+
+!lookup memory
+# Expect: Should find the memory about "mock storage backend"
+
+# Exit
+!quit
+# Expect: "Goodbye!"

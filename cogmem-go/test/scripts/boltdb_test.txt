@@ -1,0 +1,60 @@
+#!/bin/bash
+# boltdb_test.txt - Script of commands to test example-client with BoltDB
+# Run with: cat boltdb_test.txt | ./bin/example-client --config configs/boltdb.yaml
+
+# Begin test
+# First check the configuration - should be KV with BoltDB
+!config
+# Expect: Should show KV storage config with BoltDB provider
+
+# Create a test entity and user
+!entity bolt_test_entity
+# Expect: "Entity set to: bolt_test_entity"
+
+!user bolt_test_user
+# Expect: "User set to: bolt_test_user"
+
+# Store some memories to test persistence
+!remember BoltDB is a key-value store implemented in pure Go.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember BoltDB implements ACID-compliant transactions.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember BoltDB stores data in a B+tree format.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Test keyword lookup
+!lookup BoltDB
+# Expect: Should find all three memories containing "BoltDB"
+
+!lookup ACID
+# Expect: Should find the memory about ACID transactions
+
+!lookup nonexistent
+# Expect: "No memories found for the query."
+
+# Test entity isolation
+!entity bolt_test_entity2
+# Expect: "Entity set to: bolt_test_entity2"
+
+!remember This memory belongs only to the second bolt entity.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!lookup BoltDB
+# Expect: "No memories found for the query." (Different entity)
+
+# Return to original entity
+!entity bolt_test_entity
+# Expect: "Entity set to: bolt_test_entity"
+
+!lookup BoltDB
+# Expect: Should find all three BoltDB memories again
+
+# Test reflection (if configured)
+!reflect
+# Expect: "Reflection completed successfully" message
+
+# Exit
+!quit
+# Expect: "Goodbye!"

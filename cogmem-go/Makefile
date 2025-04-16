@@ -14,7 +14,7 @@ SQLC = sqlc
 # Build flags
 BUILD_FLAGS = -v
 
-.PHONY: all build clean test test-verbose test-integration test-cmd test-postgres lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
+.PHONY: all build clean test test-verbose test-integration test-cmd test-cmd-postgres test-cmd-script test-cmd-script-mock test-cmd-script-boltdb test-cmd-script-sqlite test-cmd-script-postgres test-cmd-script-chromemgo test-cmd-script-all test-postgres lint fmt sqlc-gen help deps create-test-db drop-test-db test-db-setup
 
 all: build
 
@@ -61,6 +61,34 @@ test-cmd:
 # Run command-line tool tests with postgres
 test-cmd-postgres:
 	INTEGRATION_TESTS=true TEST_POSTGRES=true $(GO) test -v -count=1 -tags=integration ./test/cmd/example_client_test.go -run TestExampleClientWithPostgresConfig
+
+# Run script-based tests for example-client with various configurations
+test-cmd-script: install
+	cd ./test/scripts && ./run_tests.sh mock
+
+# Run script-based tests with mock backend
+test-cmd-script-mock: install
+	cd ./test/scripts && ./run_tests.sh mock
+
+# Run script-based tests with BoltDB backend
+test-cmd-script-boltdb: install
+	cd ./test/scripts && ./run_tests.sh boltdb
+
+# Run script-based tests with SQLite backend
+test-cmd-script-sqlite: install
+	cd ./test/scripts && ./run_tests.sh sqlite
+
+# Run script-based tests with PostgreSQL backend (requires POSTGRES_URL and OPENAI_API_KEY)
+test-cmd-script-postgres: install
+	cd ./test/scripts && ./run_tests.sh postgres
+
+# Run script-based tests with ChromemGo backend (requires OPENAI_API_KEY)
+test-cmd-script-chromemgo: install
+	cd ./test/scripts && ./run_tests.sh chromemgo
+
+# Run all script-based tests
+test-cmd-script-all: install
+	cd ./test/scripts && ./run_tests.sh all
 
 # Run PostgreSQL-specific integration tests (HStore, SQLStore, and PgVector adapters)
 # See ../docs/POSTGRES_TESTING.md for details
@@ -117,6 +145,13 @@ help:
 	@echo "  test-integration - Run integration tests"
 	@echo "  test-cmd        - Run command-line tool tests"
 	@echo "  test-cmd-postgres - Run command-line tool tests with PostgreSQL"
+	@echo "  test-cmd-script - Run script-based tests for example-client (default: mock)"
+	@echo "  test-cmd-script-mock - Run script-based tests with mock backend"
+	@echo "  test-cmd-script-boltdb - Run script-based tests with BoltDB backend"
+	@echo "  test-cmd-script-sqlite - Run script-based tests with SQLite backend"
+	@echo "  test-cmd-script-postgres - Run script-based tests with PostgreSQL backend"
+	@echo "  test-cmd-script-chromemgo - Run script-based tests with ChromemGo backend"
+	@echo "  test-cmd-script-all - Run all script-based tests"
 	@echo "  test-postgres   - Run PostgreSQL-specific integration tests (see ../docs/POSTGRES_TESTING.md)"
 	@echo "  bench           - Run benchmarks"
 	@echo "  lint            - Run linter"

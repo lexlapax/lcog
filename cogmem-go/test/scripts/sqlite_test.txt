@@ -1,0 +1,66 @@
+#!/bin/bash
+# sqlite_test.txt - Script of commands to test example-client with SQLite backend
+# Run with: cat sqlite_test.txt | ./bin/example-client --config configs/sqlite.yaml
+
+# Begin test
+# First check the configuration
+!config
+# Expect: Should show SQLite configuration
+
+# Create a test entity and user
+!entity sqlite_test_entity
+# Expect: "Entity set to: sqlite_test_entity"
+
+!user sqlite_test_user
+# Expect: "User set to: sqlite_test_user"
+
+# Store some memories for testing
+!remember SQLite is a C library that provides a lightweight disk-based database.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember SQLite uses a self-contained, serverless, zero-configuration design.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember SQLite supports ACID properties despite being a file-based database.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember SQLite is the most widely deployed and used database engine in the world.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Test basic keyword retrieval
+!lookup SQLite
+# Expect: Should find all four memories containing "SQLite"
+
+!lookup database
+# Expect: Should find memories containing "database"
+
+!lookup ACID
+# Expect: Should find memory about ACID properties
+
+!lookup nonexistent
+# Expect: "No memories found for the query."
+
+# Test entity isolation
+!entity sqlite_test_entity2
+# Expect: "Entity set to: sqlite_test_entity2"
+
+!remember This memory belongs only to the second entity in SQLite.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!lookup SQLite
+# Expect: Should only find the new memory, not previous entity's memories
+
+# Switch back to first entity
+!entity sqlite_test_entity
+# Expect: "Entity set to: sqlite_test_entity"
+
+!lookup SQLite
+# Expect: Should find all four original SQLite memories again
+
+# Test reflection (if enabled)
+!reflect
+# Expect: "Reflection completed successfully"
+
+# Exit the client
+!quit
+# Expect: "Goodbye!"

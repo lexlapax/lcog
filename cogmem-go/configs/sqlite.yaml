@@ -1,0 +1,68 @@
+# CogMem Configuration with SQLite Backend
+# Uses SQLite for simple, file-based storage with no external dependencies
+
+# Logging Configuration
+log:
+  level: "debug"
+  format: "text"
+
+# LTM (Long-Term Memory) Configuration
+ltm:
+  # SQLite backend for LTM storage
+  type: "sqlstore"
+  
+  # SQL Store Backend Configuration
+  sqlstore:
+    driver: "sqlite"
+    # SQLite database path (relative to execution directory)
+    dsn: "./data/cogmem.db"
+    # Table name for memory records
+    table_name: "memory_records"
+
+# Scripting Configuration
+scripting:
+  # Paths to directories containing Lua scripts
+  paths:
+    - "./scripts/mmu"
+    - "./scripts/reflection"
+  # Scripting engine settings
+  engine:
+    enable_sandboxing: true
+    script_timeout_ms: 1000
+    max_memory_mb: 100
+
+# MMU (Memory Management Unit) Configuration
+mmu:
+  # Enable Lua hooks for memory operations
+  enable_lua_hooks: true
+  # Hook scripts for various memory operations
+  hooks:
+    # Script for customizing memory operations
+    custom: "./scripts/mmu/custom_hooks.lua"
+    # Script for embedding generation
+    embedding: "./scripts/mmu/embedding_hooks.lua"
+    # Script for filtering memory retrieval
+    retrieval_filter: "./scripts/mmu/retrieval_filter.lua"
+  # Retrieval configuration
+  retrieval:
+    max_results: 10
+
+# Reasoning Engine Configuration
+reasoning:
+  # Use mock provider for reasoning (no external dependencies)
+  provider: "mock"
+  # MockEngine configuration
+  mock:
+    # Default response for queries
+    default_response: "This is a response from the mock reasoning engine. In a real deployment, this would be provided by an LLM like OpenAI or Anthropic."
+    # Response delay simulation in milliseconds (0 for no delay)
+    response_delay_ms: 100
+
+# Reflection Configuration
+reflection:
+  # Enable reflection process
+  enabled: true
+  # Number of interactions between reflection cycles
+  trigger_frequency: 5
+  # Maximum number of memories to analyze
+  max_memories_to_analyze: 20

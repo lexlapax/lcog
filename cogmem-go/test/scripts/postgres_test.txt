@@ -1,0 +1,60 @@
+#!/bin/bash
+# postgres_test.txt - Script of commands to test example-client with PostgreSQL (pgvector)
+# Run with: POSTGRES_URL="postgres://..." OPENAI_API_KEY="..." cat postgres_test.txt | ./bin/example-client --config configs/postgres.yaml
+
+# Begin test
+# First check the configuration - should show pgvector
+!config
+# Expect: Should show pgvector configuration with PostgreSQL
+
+# Create a test entity and user
+!entity pg_test_entity
+# Expect: "Entity set to: pg_test_entity"
+
+!user pg_test_user
+# Expect: "User set to: pg_test_user"
+
+# Store some memories for vector search testing
+!remember PostgreSQL is an open-source relational database management system.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember PostgreSQL can be extended with the pgvector extension for vector similarity search.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember Vector databases are optimized for storing and querying high-dimensional vectors.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!remember Embeddings convert text or other data into high-dimensional vectors that capture semantic meaning.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+# Test keyword lookup
+!lookup PostgreSQL
+# Expect: Should find the first two memories containing "PostgreSQL"
+
+# Test semantic search (requires OpenAI API key)
+!search database systems
+# Expect: Should return memories related to databases (likely first memory)
+
+!search vector embeddings
+# Expect: Should return memories about vectors and embeddings (likely last two memories)
+
+# Test entity isolation
+!entity pg_test_entity2
+# Expect: "Entity set to: pg_test_entity2"
+
+!remember This is a test memory for the second PostgreSQL entity.
+# Expect: "Memory stored successfully with ID: <some_id>"
+
+!lookup PostgreSQL
+# Expect: Should only find this new memory, not the ones from first entity
+
+# Return to original entity
+!entity pg_test_entity
+# Expect: "Entity set to: pg_test_entity"
+
+!lookup PostgreSQL
+# Expect: Should find the original PostgreSQL memories again
+
+# Exit
+!quit
+# Expect: "Goodbye!"
