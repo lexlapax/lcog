@@ -1,7 +1,7 @@
 # CogMem Configuration Example
 
 # Logging Configuration
-log:
+logging:
   # Log level can be "debug", "info", "warn", or "error"
   level: "info"
   # Format can be "text" or "json"
@@ -9,58 +9,66 @@ log:
 
 # LTM (Long-Term Memory) Configuration
 ltm:
-  # Type can be "sqlstore", "kv", "chromemgo", "mock"
-  type: "mock"
+  # Type specifies the LTM backend:
+  # - "sqlstore": SQL-based storage
+  # - "kv": Key-value storage
+  # - "chromemgo": ChromemGo vector storage
+  # - "pgvector": PostgreSQL pgvector storage
+  # - "mock": Mock storage (for testing)
+  type: "kv"
   
   # SQL Store Backend Configuration
-  sqlstore:
+  sql:
     # Driver can be "postgres" or "sqlite"
     driver: "sqlite"
+    # DSN (Data Source Name) for database connection
+    dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+    # SQLite configuration
     sqlite:
       path: "./data/cogmem.db"
-    postgres:
-      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
   
   # KV (Key-Value) Backend Configuration
   kv:
     # Provider can be "boltdb", "redis", or "postgres_hstore"
     provider: "boltdb"
+    # BoltDB configuration
     boltdb:
+      # Path to the BoltDB file
       path: "./data/cogmem.bolt.db"
+    # Redis configuration
     redis:
+      # Redis server address
       addr: "localhost:6379"
+      # Redis password (optional)
       password: ""
+      # Redis database number
       db: 0
+    # PostgreSQL with HStore extension
     postgres_hstore:
+      # PostgreSQL connection string
       dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
   
-  # Vector Database Configuration
-  vector:
-    # Provider can be "postgres", "milvus", or "weaviate" or "chromemgo"
-    provider: "postgres"
-    postgres:
-      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
-    milvus:
-      addr: "localhost:19530"
-    weaviate:
-      addr: "localhost:8080"
-    chromemgo:
-      url: "http://localhost:8080"
-      collection: "memories"
-      dimensions: 1536
-
-  # Graph Database Configuration
-  graph:
-    # Provider can be "neo4j", "dgraph", or "postgres"
-    provider: "postgres"
-    neo4j:
-      uri: "bolt://localhost:7687"
-      username: "neo4j"
-      password: "password"
-    dgraph:
-      addr: "localhost:9080"
-    postgres:
-      dsn: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+  # ChromemGo Vector Store Configuration
+  chromemgo:
+    # URL for the ChromemGo service (unused as we use embedded library)
+    url: "http://localhost:8080"
+    # Collection name to use
+    collection: "memories"
+    # Dimensions of the vector embeddings
+    dimensions: 1536
+    # Path for persistent storage (leave empty for in-memory)
+    storage_path: "./data/chromemgo"
+  
+  # PostgreSQL pgvector Configuration
+  pgvector:
+    # PostgreSQL connection string
+    connection_string: "postgres://postgres:postgres@localhost:5432/cogmem?sslmode=disable"
+    # Table name for vector storage
+    table_name: "memory_vectors"
+    # Dimensions of the vector embeddings
+    dimensions: 1536
+    # Distance metric for similarity search (cosine, euclidean, dot)
+    distance_metric: "cosine"
 
 # Scripting Configuration
 scripting:
@@ -70,29 +78,51 @@ scripting:
     - "./scripts/reflection"
   # Scripting engine settings
   engine:
+    # Enable sandboxing for Lua scripts
     enable_sandboxing: true
+    # Maximum execution time for scripts in milliseconds
     script_timeout_ms: 1000
+    # Maximum memory usage for scripts in MB
     max_memory_mb: 100
 
 # MMU (Memory Management Unit) Configuration
 mmu:
   # Enable Lua hooks for memory operations
   enable_lua_hooks: true
+  # Hook scripts for various memory operations
+  hooks:
+    # Script for customizing memory operations
+    custom: "./scripts/mmu/custom_hooks.lua"
+    # Script for embedding generation
+    embedding: "./scripts/mmu/embedding_hooks.lua"
+    # Script for filtering memory retrieval
+    retrieval_filter: "./scripts/mmu/retrieval_filter.lua"
 
 # Reasoning Engine Configuration
 reasoning:
   # Provider can be "openai", "anthropic", or "mock"
   provider: "openai"
+  # OpenAI configuration
   openai:
+    # OpenAI API key (from environment variable)
     api_key: "${OPENAI_API_KEY}"
+    # Model to use for chat/completion
     model: "gpt-4"
+    # Model to use for embedding generation
     embedding_model: "text-embedding-3-small"
+    # Maximum tokens to generate
     max_tokens: 1000
+    # Temperature controls randomness (0.0-1.0)
     temperature: 0.7
+  # Anthropic configuration
   anthropic:
+    # Anthropic API key (from environment variable)
     api_key: "${ANTHROPIC_API_KEY}"
+    # Model to use
     model: "claude-3-opus-20240229"
+    # Maximum tokens to generate
     max_tokens: 1000
+    # Temperature controls randomness (0.0-1.0)
     temperature: 0.7
 
 # Reflection Configuration
